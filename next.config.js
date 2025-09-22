@@ -11,5 +11,4 @@ const nextConfig = {
     optimizeCss: true
   }
 };
-
-export default nextConfig;
+module.exports = nextConfig;
