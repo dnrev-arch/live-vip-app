@@ -29,12 +29,11 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState('home');
   const [lastStorageCheck, setLastStorageCheck] = useState(Date.now());
 
-  // Função para carregar lives do localStorage com força TOTAL
+  // Função para carregar lives do localStorage
   const loadStreamsFromStorage = useCallback((): LiveStream[] => {
     if (typeof window === 'undefined') return [];
     
     try {
-      // Tentar múltiplas keys de storage (caso admin use key diferente)
       const possibleKeys = ['liveStreams', 'streams', 'adminStreams'];
       
       for (const key of possibleKeys) {
@@ -48,7 +47,6 @@ export default function HomePage() {
         }
       }
       
-      // Se não encontrou nada, logar todas as keys do localStorage
       console.log('📱 No streams found. All localStorage keys:', Object.keys(localStorage));
       
     } catch (error) {
@@ -60,23 +58,27 @@ export default function HomePage() {
 
   const [liveStreams, setLiveStreams] = useState<LiveStream[]>([]);
 
-  // Função SUPER agressiva para verificar mudanças
+  // Função para verificar mudanças no localStorage
   const forceCheckStorage = useCallback(() => {
     try {
       const newStreams = loadStreamsFromStorage();
       const currentCount = liveStreams.length;
       const newCount = newStreams.length;
       
-      // Log detalhado
       console.log(`🔍 Force check: Current=${currentCount}, New=${newCount}`);
       
       if (newCount !== currentCount || JSON.stringify(liveStreams) !== JSON.stringify(newStreams)) {
         console.log('🔄 UPDATING STREAMS!', newStreams);
         setLiveStreams(newStreams);
         setLastStorageCheck(Date.now());
+        
+        // Se a stream atual foi removida, fechar o player
+        if (currentStream && !newStreams.find(s => s.id === currentStream.id)) {
+          setCurrentStream(null);
+          setWatchTime(0);
+        }
       }
       
-      // Verificar triggers específicos
       const triggers = ['forceRefresh', 'adminUpdate', 'adminForceSync', 'lastUpdate'];
       triggers.forEach(trigger => {
         const value = localStorage.getItem(trigger);
@@ -89,7 +91,7 @@ export default function HomePage() {
     } catch (error) {
       console.error('Error in force check:', error);
     }
-  }, [liveStreams, loadStreamsFromStorage]);
+  }, [liveStreams, loadStreamsFromStorage, currentStream]);
 
   // Inicialização
   useEffect(() => {
@@ -99,17 +101,15 @@ export default function HomePage() {
     console.log('📊 Initial streams:', initialStreams.length);
   }, [loadStreamsFromStorage]);
 
-  // Sistema de monitoramento EXTREMAMENTE agressivo para mobile
+  // Sistema de monitoramento para mobile
   useEffect(() => {
-    console.log('🔧 Setting up EXTREME monitoring for mobile');
+    console.log('🔧 Setting up monitoring');
 
-    // Verificação ultra-frequente (200ms para mobile)
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    const checkInterval = isMobile ? 200 : 1000; // 200ms mobile, 1s desktop
+    const checkInterval = isMobile ? 200 : 1000;
     
     const ultraCheck = setInterval(forceCheckStorage, checkInterval);
 
-    // Listeners para todos os eventos possíveis
     const events = [
       'storage', 'focus', 'visibilitychange', 'pageshow', 'load', 
       'beforeunload', 'hashchange', 'popstate'
@@ -130,7 +130,6 @@ export default function HomePage() {
       }
     });
 
-    // Para mobile, também verificar a cada mudança de orientação
     if (isMobile) {
       const orientationHandler = () => {
         console.log('📱 Orientation changed');
@@ -140,7 +139,6 @@ export default function HomePage() {
       handlers['orientationchange'] = orientationHandler;
     }
 
-    // Verificar quando localStorage muda (polling)
     let lastStorageContent = JSON.stringify(localStorage);
     const storagePoller = setInterval(() => {
       const currentStorageContent = JSON.stringify(localStorage);
@@ -189,6 +187,12 @@ export default function HomePage() {
     }
   }, []);
 
+  // Função para trocar de stream (usada pelo swipe)
+  const handleStreamChange = (newStream: LiveStream) => {
+    setCurrentStream(newStream);
+    setWatchTime(0); // Reset timer quando trocar
+  };
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -197,7 +201,7 @@ export default function HomePage() {
 
   const remainingTime = 300 - watchTime;
 
-  // Função debug melhorada
+  // Função debug
   const debugInfo = () => {
     const storageData = localStorage.getItem('liveStreams');
     const allKeys = Object.keys(localStorage);
@@ -206,15 +210,15 @@ export default function HomePage() {
     console.log('- State streams:', liveStreams.length);
     console.log('- Storage liveStreams:', storageData ? JSON.parse(storageData).length : 0);
     console.log('- All localStorage keys:', allKeys);
+    console.log('- Current stream:', currentStream?.title || 'None');
     console.log('- Last check:', new Date(lastStorageCheck).toLocaleTimeString());
     
-    // Força verificação
     forceCheckStorage();
     
     const info = `
 Estado: ${liveStreams.length} lives
 Storage: ${storageData ? JSON.parse(storageData).length : 0} lives
-Keys: ${allKeys.length}
+Stream Atual: ${currentStream?.title || 'Nenhuma'}
 Última verificação: ${new Date(lastStorageCheck).toLocaleTimeString()}
     `.trim();
     
@@ -229,7 +233,6 @@ Keys: ${allKeys.length}
           <div className="flex items-center space-x-2">
             <Crown className="w-6 h-6 text-yellow-400" />
             <h1 className="text-xl font-bold">LIVE VIP</h1>
-            {/* Debug button - visível apenas em localhost ou com parâmetro debug */}
             {(typeof window !== 'undefined' && 
               (window.location.hostname === 'localhost' || 
                window.location.search.includes('debug'))) && (
@@ -263,16 +266,18 @@ Keys: ${allKeys.length}
         {currentStream ? (
           <LivePlayer
             stream={currentStream}
+            allStreams={liveStreams}
             onClose={() => {
               setCurrentStream(null);
               setWatchTime(0);
             }}
+            onStreamChange={handleStreamChange}
             isPremium={isPremium}
             watchTime={watchTime}
           />
         ) : (
           <div className="p-4">
-            {/* Premium Banner - só aparece se há lives */}
+            {/* Premium Banner */}
             {!isPremium && liveStreams.length > 0 && (
               <div className="bg-gradient-to-r from-yellow-500 to-orange-500 rounded-lg p-4 mb-6">
                 <div className="flex items-center justify-between">
@@ -307,7 +312,6 @@ Keys: ${allKeys.length}
               </div>
               
               {liveStreams.length === 0 ? (
-                // Empty State - SEM link para admin
                 <div className="text-center py-12">
                   <div className="mb-4 text-6xl">📺</div>
                   <h3 className="text-xl font-bold mb-2">Nenhuma live ativa</h3>
@@ -325,48 +329,69 @@ Keys: ${allKeys.length}
                   </div>
                 </div>
               ) : (
-                // Lives List
-                liveStreams.map((stream) => (
-                  <div
-                    key={stream.id}
-                    onClick={() => setCurrentStream(stream)}
-                    className="relative rounded-lg overflow-hidden cursor-pointer transform transition-transform hover:scale-105"
-                  >
-                    <img
-                      src={stream.thumbnail}
-                      alt={stream.title}
-                      className="w-full h-48 object-cover"
-                    />
-                    
-                    {/* Live Badge */}
-                    <div className="absolute top-3 left-3 bg-red-500 px-2 py-1 rounded-full text-xs font-bold flex items-center space-x-1">
-                      <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                      <span>AO VIVO</span>
-                    </div>
+                <div className="space-y-4">
+                  {/* Instruções de navegação */}
+                  <div className="bg-blue-500/20 rounded-lg p-3 border border-blue-500/30">
+                    <p className="text-sm text-blue-400 font-medium">💡 Dica:</p>
+                    <p className="text-xs text-gray-300 mt-1">
+                      Ao abrir uma live, deslize para cima/baixo para navegar entre lives!
+                    </p>
+                  </div>
 
-                    {/* Viewer Count */}
-                    <div className="absolute top-3 right-3 bg-black/70 px-2 py-1 rounded-full text-xs flex items-center space-x-1">
-                      <Users className="w-3 h-3" />
-                      <span>{stream.viewerCount}</span>
-                    </div>
+                  {/* Lives List */}
+                  {liveStreams.map((stream, index) => (
+                    <div
+                      key={stream.id}
+                      onClick={() => setCurrentStream(stream)}
+                      className="relative rounded-lg overflow-hidden cursor-pointer transform transition-transform hover:scale-105"
+                    >
+                      <img
+                        src={stream.thumbnail}
+                        alt={stream.title}
+                        className="w-full h-48 object-cover"
+                      />
+                      
+                      {/* Live Badge */}
+                      <div className="absolute top-3 left-3 bg-red-500 px-2 py-1 rounded-full text-xs font-bold flex items-center space-x-1">
+                        <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                        <span>AO VIVO</span>
+                      </div>
 
-                    {/* Stream Info */}
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <img
-                          src={stream.streamerAvatar}
-                          alt={stream.streamerName}
-                          className="w-8 h-8 rounded-full"
-                        />
-                        <div>
-                          <p className="font-semibold text-sm">{stream.streamerName}</p>
-                          <p className="text-xs text-gray-300">{stream.category}</p>
+                      {/* Position Indicator */}
+                      <div className="absolute top-3 right-3 bg-black/70 px-2 py-1 rounded-full text-xs flex items-center space-x-1">
+                        <span>{index + 1}</span>
+                        <Users className="w-3 h-3" />
+                        <span>{stream.viewerCount}</span>
+                      </div>
+
+                      {/* Stream Info */}
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <img
+                            src={stream.streamerAvatar}
+                            alt={stream.streamerName}
+                            className="w-8 h-8 rounded-full"
+                          />
+                          <div>
+                            <p className="font-semibold text-sm">{stream.streamerName}</p>
+                            <p className="text-xs text-gray-300">{stream.category}</p>
+                          </div>
+                        </div>
+                        <h3 className="font-bold">{stream.title}</h3>
+                        
+                        {/* Preview do que vem depois/antes */}
+                        <div className="flex items-center justify-between mt-2 text-xs text-gray-400">
+                          <span>
+                            {index > 0 && `👆 ${liveStreams[index - 1].streamerName}`}
+                          </span>
+                          <span>
+                            {index < liveStreams.length - 1 && `👇 ${liveStreams[index + 1].streamerName}`}
+                          </span>
                         </div>
                       </div>
-                      <h3 className="font-bold">{stream.title}</h3>
                     </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
           </div>
