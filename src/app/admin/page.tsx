@@ -371,6 +371,15 @@ export default function AdminPage() {
             <li>• URLs de vídeo são opcionais (para simulação de live)</li>
             <li>• Todas as alterações são aplicadas imediatamente</li>
             <li>• Para voltar ao site público, clique em "Ver Site"</li>
+            <button 
+  onClick={() => {
+    localStorage.setItem('forceRefresh', Date.now().toString());
+    alert('Sincronização forçada! Verifique o site.');
+  }}
+  className="bg-green-500/20 px-4 py-2 rounded-lg hover:bg-green-500/30 transition-colors border border-green-500"
+>
+  Forçar Sync
+</button>
           </ul>
         </div>
       </div>
