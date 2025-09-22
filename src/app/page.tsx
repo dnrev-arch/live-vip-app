@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Play, Users, MessageCircle, Heart, Share2, Crown, User, Settings, Home, Search } from 'lucide-react';
+import { Play, Users, MessageCircle, Heart, Share2, Crown, User, Home, Search } from 'lucide-react';
 import LivePlayer from '@/components/LivePlayer';
 import ProfileModal from '@/components/ProfileModal';
 import PremiumModal from '@/components/PremiumModal';
