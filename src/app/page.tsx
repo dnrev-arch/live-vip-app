@@ -79,21 +79,32 @@ export default function HomePage() {
 
   // Atualizar lives quando localStorage mudar (para sincronizar com admin)
   useEffect(() => {
-    const handleStorageChange = () => {
-      setLiveStreams(loadStreamsFromStorage());
-    };
-
-    // Escutar mudanças no localStorage
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Verificar mudanças periodicamente (para quando admin e site estão na mesma aba)
-    const interval = setInterval(() => {
+    const loadAndSetStreams = () => {
       const stored = localStorage.getItem('liveStreams');
       if (stored) {
-        const parsedStreams = JSON.parse(stored);
-        setLiveStreams(parsedStreams);
+        try {
+          const parsedStreams = JSON.parse(stored);
+          setLiveStreams(parsedStreams);
+        } catch (error) {
+          console.error('Erro ao carregar streams:', error);
+        }
       }
-    }, 2000);
+    };
+
+    // Carregar imediatamente quando componente montar
+    loadAndSetStreams();
+
+    // Escutar mudanças no localStorage
+    const handleStorageChange = (e) => {
+      if (e.key === 'liveStreams' || e.key === null) {
+        loadAndSetStreams();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Verificar mudanças periodicamente (mais frequente no mobile)
+    const interval = setInterval(loadAndSetStreams, 1000); // 1 segundo
 
     return () => {
       window.removeEventListener('storage', handleStorageChange);
