@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { X, Play, Pause, Volume2, VolumeX, MessageCircle, Heart, Share2, Users, Crown } from 'lucide-react';
+import { X, Play, Pause, Volume2, VolumeX, MessageCircle, Heart, Share2, Users, Crown, Maximize2, Minimize2 } from 'lucide-react';
 
 interface LivePlayerProps {
   stream: {
@@ -11,6 +11,7 @@ interface LivePlayerProps {
     viewerCount: number;
     streamerName: string;
     streamerAvatar: string;
+    thumbnail: string;
   };
   onClose: () => void;
   isPremium: boolean;
@@ -35,6 +36,9 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
   const [showComments, setShowComments] = useState(false);
   const [likes, setLikes] = useState(Math.floor(Math.random() * 500) + 100);
   const [hasLiked, setHasLiked] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hasVideoError, setHasVideoError] = useState(false);
 
   // Comentários simulados
   const simulatedComments = [
@@ -45,8 +49,8 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
     { user: 'Carlos_VIP', message: 'Vale muito a pena ser premium', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=50&h=50&fit=crop&crop=face' }
   ];
 
+  // Adicionar comentários simulados periodicamente
   useEffect(() => {
-    // Adicionar comentários simulados periodicamente
     const interval = setInterval(() => {
       const randomComment = simulatedComments[Math.floor(Math.random() * simulatedComments.length)];
       const newComment: Comment = {
@@ -57,12 +61,59 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
         avatar: randomComment.avatar
       };
       
-      setComments(prev => [...prev.slice(-20), newComment]); // Manter apenas os últimos 20 comentários
-    }, Math.random() * 10000 + 5000); // Entre 5-15 segundos
+      setComments(prev => [...prev.slice(-20), newComment]);
+    }, Math.random() * 10000 + 5000);
 
     return () => clearInterval(interval);
   }, []);
 
+  // Configurar vídeo quando componente montar
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video && stream.videoUrl) {
+      // Configurações do vídeo
+      video.muted = isMuted;
+      video.volume = volume;
+      video.playsInline = true;
+      video.controls = false;
+      
+      // Event listeners do vídeo
+      const handleLoadedData = () => {
+        console.log('✅ Video loaded successfully');
+        setHasVideoError(false);
+      };
+      
+      const handleError = (e: any) => {
+        console.error('❌ Video error:', e);
+        setHasVideoError(true);
+      };
+      
+      const handlePlay = () => setIsPlaying(true);
+      const handlePause = () => setIsPlaying(false);
+      
+      video.addEventListener('loadeddata', handleLoadedData);
+      video.addEventListener('error', handleError);
+      video.addEventListener('play', handlePlay);
+      video.addEventListener('pause', handlePause);
+      
+      // Tentar reproduzir automaticamente
+      setTimeout(() => {
+        video.play().catch(error => {
+          console.log('Autoplay prevented:', error);
+          setIsPlaying(false);
+        });
+      }, 500);
+      
+      return () => {
+        video.removeEventListener('loadeddata', handleLoadedData);
+        video.removeEventListener('error', handleError);
+        video.removeEventListener('play', handlePlay);
+        video.removeEventListener('pause', handlePause);
+      };
+    }
+  }, [stream.videoUrl, isMuted, volume]);
+
+  // Auto-hide controls
   useEffect(() => {
     let timeout: NodeJS.Timeout;
     if (showControls) {
@@ -71,21 +122,53 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
     return () => clearTimeout(timeout);
   }, [showControls]);
 
-  const togglePlay = () => {
-    if (videoRef.current) {
+  const togglePlay = async () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    try {
       if (isPlaying) {
-        videoRef.current.pause();
+        await video.pause();
       } else {
-        videoRef.current.play();
+        await video.play();
       }
-      setIsPlaying(!isPlaying);
+    } catch (error) {
+      console.error('Error toggling play:', error);
+      setHasVideoError(true);
     }
   };
 
   const toggleMute = () => {
-    if (videoRef.current) {
-      videoRef.current.muted = !isMuted;
+    const video = videoRef.current;
+    if (video) {
+      video.muted = !isMuted;
       setIsMuted(!isMuted);
+    }
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVolume = parseFloat(e.target.value);
+    setVolume(newVolume);
+    const video = videoRef.current;
+    if (video) {
+      video.volume = newVolume;
+      if (newVolume === 0) {
+        setIsMuted(true);
+        video.muted = true;
+      } else if (isMuted) {
+        setIsMuted(false);
+        video.muted = false;
+      }
+    }
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
     }
   };
 
@@ -98,7 +181,6 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
 
   const handleAddComment = () => {
     if (newComment.trim() && !isPremium) {
-      // Usuários gratuitos têm comentários limitados
       alert('Upgrade para Premium para comentar sem limites!');
       return;
     }
@@ -131,16 +213,39 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
         className="relative w-full h-full"
         onClick={() => setShowControls(true)}
       >
-        {/* Placeholder for video - replace with actual video element */}
-        <div className="w-full h-full bg-gradient-to-br from-purple-900 to-pink-900 flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mb-4 mx-auto">
-              <Play className="w-8 h-8 text-white ml-1" />
+        {/* Video Element ou Fallback */}
+        {stream.videoUrl && !hasVideoError ? (
+          <video
+            ref={videoRef}
+            className="w-full h-full object-cover"
+            src={stream.videoUrl}
+            poster={stream.thumbnail}
+            playsInline
+            muted={isMuted}
+            loop
+          />
+        ) : (
+          // Fallback: mostrar thumbnail como imagem
+          <div 
+            className="w-full h-full bg-cover bg-center relative"
+            style={{ backgroundImage: `url(${stream.thumbnail})` }}
+          >
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+              <div className="text-center">
+                <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mb-4 mx-auto">
+                  <Play className="w-8 h-8 text-white ml-1" />
+                </div>
+                <p className="text-white/80">Live Stream</p>
+                <p className="text-sm text-white/60 mt-2">{stream.title}</p>
+                {hasVideoError && (
+                  <p className="text-xs text-yellow-400 mt-2">
+                    Vídeo indisponível - Mostrando preview
+                  </p>
+                )}
+              </div>
             </div>
-            <p className="text-white/80">Simulação de Live Stream</p>
-            <p className="text-sm text-white/60 mt-2">{stream.title}</p>
           </div>
-        </div>
+        )}
 
         {/* Live Indicator */}
         <div className="absolute top-4 left-4 bg-red-500 px-3 py-1 rounded-full text-sm font-bold flex items-center space-x-2">
@@ -157,7 +262,7 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 w-10 h-10 bg-black/70 rounded-full flex items-center justify-center"
+          className="absolute top-4 right-4 w-10 h-10 bg-black/70 rounded-full flex items-center justify-center hover:bg-black/90 transition-colors"
         >
           <X className="w-5 h-5" />
         </button>
@@ -176,7 +281,7 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
             <div className="absolute inset-0 flex items-center justify-center">
               <button
                 onClick={togglePlay}
-                className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm"
+                className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm hover:bg-white/30 transition-colors"
               >
                 {isPlaying ? (
                   <Pause className="w-8 h-8 text-white" />
@@ -187,7 +292,7 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
             </div>
 
             {/* Bottom Controls */}
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-3">
                   <img
@@ -200,16 +305,43 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
                     <p className="text-sm text-gray-300">{stream.title}</p>
                   </div>
                 </div>
-                <button
-                  onClick={toggleMute}
-                  className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center"
-                >
-                  {isMuted ? (
-                    <VolumeX className="w-5 h-5" />
-                  ) : (
-                    <Volume2 className="w-5 h-5" />
-                  )}
-                </button>
+                
+                <div className="flex items-center space-x-3">
+                  {/* Volume Controls */}
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={toggleMute}
+                      className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+                    >
+                      {isMuted || volume === 0 ? (
+                        <VolumeX className="w-4 h-4" />
+                      ) : (
+                        <Volume2 className="w-4 h-4" />
+                      )}
+                    </button>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={volume}
+                      onChange={handleVolumeChange}
+                      className="w-16 accent-purple-500"
+                    />
+                  </div>
+
+                  {/* Fullscreen Button */}
+                  <button
+                    onClick={toggleFullscreen}
+                    className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+                  >
+                    {isFullscreen ? (
+                      <Minimize2 className="w-4 h-4" />
+                    ) : (
+                      <Maximize2 className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -219,8 +351,8 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
         <div className="absolute right-4 bottom-32 flex flex-col space-y-4">
           <button
             onClick={handleLike}
-            className={`w-12 h-12 rounded-full flex flex-col items-center justify-center ${
-              hasLiked ? 'bg-red-500' : 'bg-white/20'
+            className={`w-12 h-12 rounded-full flex flex-col items-center justify-center transition-all ${
+              hasLiked ? 'bg-red-500' : 'bg-white/20 hover:bg-white/30'
             }`}
           >
             <Heart className={`w-6 h-6 ${hasLiked ? 'fill-white' : ''}`} />
@@ -229,18 +361,21 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
 
           <button
             onClick={() => setShowComments(!showComments)}
-            className="w-12 h-12 bg-white/20 rounded-full flex flex-col items-center justify-center"
+            className="w-12 h-12 bg-white/20 rounded-full flex flex-col items-center justify-center hover:bg-white/30 transition-colors"
           >
             <MessageCircle className="w-6 h-6" />
             <span className="text-xs mt-1">{comments.length}</span>
           </button>
 
-          <button className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
+          <button className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors">
             <Share2 className="w-6 h-6" />
           </button>
 
           {!isPremium && (
-            <button className="w-12 h-12 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
+            <button 
+              onClick={() => alert('Upgrade para Premium para recursos exclusivos!')}
+              className="w-12 h-12 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center hover:scale-110 transition-transform"
+            >
               <Crown className="w-6 h-6 text-black" />
             </button>
           )}
@@ -251,10 +386,10 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
           <div className="absolute bottom-0 left-0 right-0 h-80 bg-black/90 backdrop-blur-sm">
             <div className="p-4 h-full flex flex-col">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold">Chat ao Vivo</h3>
+                <h3 className="font-bold">Chat ao Vivo ({comments.length})</h3>
                 <button
                   onClick={() => setShowComments(false)}
-                  className="text-gray-400"
+                  className="text-gray-400 hover:text-white"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -287,13 +422,13 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
                   onChange={(e) => setNewComment(e.target.value)}
                   placeholder={isPremium ? "Digite seu comentário..." : "Upgrade para comentar"}
                   disabled={!isPremium}
-                  className="flex-1 bg-gray-800 rounded-full px-4 py-2 text-sm disabled:opacity-50"
+                  className="flex-1 bg-gray-800 rounded-full px-4 py-2 text-sm disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   onKeyPress={(e) => e.key === 'Enter' && handleAddComment()}
                 />
                 <button
                   onClick={handleAddComment}
                   disabled={!isPremium}
-                  className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center disabled:opacity-50"
+                  className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center disabled:opacity-50 hover:bg-purple-600 transition-colors"
                 >
                   <MessageCircle className="w-4 h-4" />
                 </button>
