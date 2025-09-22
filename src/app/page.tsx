@@ -6,7 +6,6 @@ import LivePlayer from '@/components/LivePlayer';
 import ProfileModal from '@/components/ProfileModal';
 import PremiumModal from '@/components/PremiumModal';
 import InstallPrompt from '@/components/InstallPrompt';
-import AdminPanel from '@/components/AdminPanel';
 
 interface LiveStream {
   id: string;
@@ -25,7 +24,6 @@ export default function HomePage() {
   const [showProfile, setShowProfile] = useState(false);
   const [showPremium, setShowPremium] = useState(false);
   const [showInstall, setShowInstall] = useState(false);
-  const [showAdmin, setShowAdmin] = useState(false);
   const [watchTime, setWatchTime] = useState(0);
   const [isPremium, setIsPremium] = useState(false);
   const [activeTab, setActiveTab] = useState('home');
@@ -259,14 +257,7 @@ export default function HomePage() {
       {showInstall && (
         <InstallPrompt onClose={() => setShowInstall(false)} />
       )}
-
-      {showAdmin && (
-        <AdminPanel
-          streams={liveStreams}
-          onUpdateStreams={setLiveStreams}
-          onClose={() => setShowAdmin(false)}
-        />
-      )}
+      
     </div>
   );
 }
