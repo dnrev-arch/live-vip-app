@@ -29,125 +29,141 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState('home');
   const [lastStorageCheck, setLastStorageCheck] = useState(Date.now());
 
-  // Função para carregar lives do localStorage - SEM fallback
+  // Função para carregar lives do localStorage com força TOTAL
   const loadStreamsFromStorage = useCallback((): LiveStream[] => {
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = localStorage.getItem('liveStreams');
-        if (stored) {
+    if (typeof window === 'undefined') return [];
+    
+    try {
+      // Tentar múltiplas keys de storage (caso admin use key diferente)
+      const possibleKeys = ['liveStreams', 'streams', 'adminStreams'];
+      
+      for (const key of possibleKeys) {
+        const stored = localStorage.getItem(key);
+        if (stored && stored !== '[]' && stored !== 'null') {
           const parsed = JSON.parse(stored);
-          console.log('📱 Loaded streams from storage:', parsed.length);
-          return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            console.log(`📱 Found ${parsed.length} streams in key: ${key}`);
+            return parsed;
+          }
         }
-      } catch (error) {
-        console.error('❌ Error loading streams:', error);
       }
+      
+      // Se não encontrou nada, logar todas as keys do localStorage
+      console.log('📱 No streams found. All localStorage keys:', Object.keys(localStorage));
+      
+    } catch (error) {
+      console.error('❌ Error loading streams:', error);
     }
     
-    console.log('📱 No streams in storage, showing empty state');
-    return []; // Retorna array vazio se não há dados
+    return [];
   }, []);
 
-  // Estado das lives - inicializado vazio, carregado do localStorage
   const [liveStreams, setLiveStreams] = useState<LiveStream[]>([]);
 
-  // Função para verificar mudanças no localStorage (muito mais agressiva)
-  const checkStorageChanges = useCallback(() => {
+  // Função SUPER agressiva para verificar mudanças
+  const forceCheckStorage = useCallback(() => {
     try {
       const newStreams = loadStreamsFromStorage();
-      const currentStreamsJson = JSON.stringify(liveStreams);
-      const newStreamsJson = JSON.stringify(newStreams);
+      const currentCount = liveStreams.length;
+      const newCount = newStreams.length;
       
-      if (currentStreamsJson !== newStreamsJson) {
-        console.log('🔄 Storage changed! Updating streams');
-        console.log('Old:', liveStreams.length, 'New:', newStreams.length);
+      // Log detalhado
+      console.log(`🔍 Force check: Current=${currentCount}, New=${newCount}`);
+      
+      if (newCount !== currentCount || JSON.stringify(liveStreams) !== JSON.stringify(newStreams)) {
+        console.log('🔄 UPDATING STREAMS!', newStreams);
         setLiveStreams(newStreams);
         setLastStorageCheck(Date.now());
       }
       
       // Verificar triggers específicos
-      const forceRefresh = localStorage.getItem('forceRefresh');
-      const adminUpdate = localStorage.getItem('adminUpdate');
-      
-      if (forceRefresh || adminUpdate) {
-        console.log('🚀 Force refresh detected!');
-        if (adminUpdate) localStorage.removeItem('adminUpdate');
-        setLiveStreams(newStreams);
-        setLastStorageCheck(Date.now());
-      }
+      const triggers = ['forceRefresh', 'adminUpdate', 'adminForceSync', 'lastUpdate'];
+      triggers.forEach(trigger => {
+        const value = localStorage.getItem(trigger);
+        if (value) {
+          console.log(`🚨 Trigger found: ${trigger} = ${value}`);
+          setLiveStreams(newStreams);
+        }
+      });
       
     } catch (error) {
-      console.error('Error checking storage:', error);
+      console.error('Error in force check:', error);
     }
   }, [liveStreams, loadStreamsFromStorage]);
 
-  // Carregamento inicial
+  // Inicialização
   useEffect(() => {
     console.log('🚀 HomePage initializing...');
     const initialStreams = loadStreamsFromStorage();
     setLiveStreams(initialStreams);
-    console.log('📊 Initial streams loaded:', initialStreams.length);
+    console.log('📊 Initial streams:', initialStreams.length);
   }, [loadStreamsFromStorage]);
 
-  // Sistema de verificação super agressivo
+  // Sistema de monitoramento EXTREMAMENTE agressivo para mobile
   useEffect(() => {
-    console.log('🔧 Setting up aggressive storage monitoring');
+    console.log('🔧 Setting up EXTREME monitoring for mobile');
 
-    // Verificação a cada 500ms (muito frequente)
-    const quickCheck = setInterval(checkStorageChanges, 500);
+    // Verificação ultra-frequente (200ms para mobile)
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const checkInterval = isMobile ? 200 : 1000; // 200ms mobile, 1s desktop
+    
+    const ultraCheck = setInterval(forceCheckStorage, checkInterval);
 
-    // Listener para storage events
-    const handleStorageChange = (e: StorageEvent) => {
-      console.log('📡 Storage event detected:', e.key);
-      if (e.key === 'liveStreams' || e.key === 'forceRefresh' || e.key === 'adminUpdate' || e.key === null) {
-        checkStorageChanges();
+    // Listeners para todos os eventos possíveis
+    const events = [
+      'storage', 'focus', 'visibilitychange', 'pageshow', 'load', 
+      'beforeunload', 'hashchange', 'popstate'
+    ];
+    
+    const handlers: { [key: string]: () => void } = {};
+    
+    events.forEach(eventName => {
+      handlers[eventName] = () => {
+        console.log(`📡 Event triggered: ${eventName}`);
+        setTimeout(forceCheckStorage, 100);
+      };
+      
+      if (eventName === 'visibilitychange') {
+        document.addEventListener(eventName, handlers[eventName]);
+      } else {
+        window.addEventListener(eventName, handlers[eventName]);
       }
-    };
+    });
 
-    // Listener para eventos customizados
-    const handleCustomEvents = (e: CustomEvent) => {
-      console.log('🎯 Custom event detected:', e.type);
-      checkStorageChanges();
-    };
+    // Para mobile, também verificar a cada mudança de orientação
+    if (isMobile) {
+      const orientationHandler = () => {
+        console.log('📱 Orientation changed');
+        setTimeout(forceCheckStorage, 500);
+      };
+      window.addEventListener('orientationchange', orientationHandler);
+      handlers['orientationchange'] = orientationHandler;
+    }
 
-    // Listener para focus/visibility
-    const handleFocus = () => {
-      console.log('👀 Page focused, checking storage');
-      setTimeout(checkStorageChanges, 100);
-    };
-
-    const handleVisibility = () => {
-      if (!document.hidden) {
-        console.log('👁️ Page visible, checking storage');
-        setTimeout(checkStorageChanges, 100);
+    // Verificar quando localStorage muda (polling)
+    let lastStorageContent = JSON.stringify(localStorage);
+    const storagePoller = setInterval(() => {
+      const currentStorageContent = JSON.stringify(localStorage);
+      if (currentStorageContent !== lastStorageContent) {
+        console.log('🗄️ LocalStorage content changed!');
+        lastStorageContent = currentStorageContent;
+        forceCheckStorage();
       }
-    };
-
-    // Registrar todos os listeners
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('adminForceSync', handleCustomEvents as any);
-    window.addEventListener('liveStreamsUpdate', handleCustomEvents as any);
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleVisibility);
+    }, 500);
 
     return () => {
-      clearInterval(quickCheck);
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('adminForceSync', handleCustomEvents as any);
-      window.removeEventListener('liveStreamsUpdate', handleCustomEvents as any);
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleVisibility);
+      clearInterval(ultraCheck);
+      clearInterval(storagePoller);
+      
+      Object.entries(handlers).forEach(([eventName, handler]) => {
+        if (eventName === 'visibilitychange') {
+          document.removeEventListener(eventName, handler);
+        } else {
+          window.removeEventListener(eventName, handler);
+        }
+      });
     };
-  }, [checkStorageChanges]);
-
-  // Verificar parâmetros da URL (para sync forçada)
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('sync')) {
-      console.log('🔄 URL sync parameter detected');
-      setTimeout(checkStorageChanges, 100);
-    }
-  }, [checkStorageChanges]);
+  }, [forceCheckStorage]);
 
   // Timer para usuários gratuitos
   useEffect(() => {
@@ -181,14 +197,28 @@ export default function HomePage() {
 
   const remainingTime = 300 - watchTime;
 
-  // Função debug
+  // Função debug melhorada
   const debugInfo = () => {
-    console.log('🐛 Debug Info:');
-    console.log('Current streams in state:', liveStreams.length);
-    console.log('LocalStorage streams:', JSON.parse(localStorage.getItem('liveStreams') || '[]').length);
-    console.log('Last check:', new Date(lastStorageCheck).toLocaleTimeString());
-    checkStorageChanges();
-    alert(`Streams: ${liveStreams.length} | Storage: ${JSON.parse(localStorage.getItem('liveStreams') || '[]').length}`);
+    const storageData = localStorage.getItem('liveStreams');
+    const allKeys = Object.keys(localStorage);
+    
+    console.log('🐛 DEBUG INFO:');
+    console.log('- State streams:', liveStreams.length);
+    console.log('- Storage liveStreams:', storageData ? JSON.parse(storageData).length : 0);
+    console.log('- All localStorage keys:', allKeys);
+    console.log('- Last check:', new Date(lastStorageCheck).toLocaleTimeString());
+    
+    // Força verificação
+    forceCheckStorage();
+    
+    const info = `
+Estado: ${liveStreams.length} lives
+Storage: ${storageData ? JSON.parse(storageData).length : 0} lives
+Keys: ${allKeys.length}
+Última verificação: ${new Date(lastStorageCheck).toLocaleTimeString()}
+    `.trim();
+    
+    alert(info);
   };
 
   return (
@@ -199,14 +229,18 @@ export default function HomePage() {
           <div className="flex items-center space-x-2">
             <Crown className="w-6 h-6 text-yellow-400" />
             <h1 className="text-xl font-bold">LIVE VIP</h1>
-            {/* Debug button - sempre visível para teste */}
-            <button 
-              onClick={debugInfo}
-              className="ml-2 text-xs bg-red-500 px-2 py-1 rounded opacity-70 hover:opacity-100"
-              title="Debug - clique para verificar sync"
-            >
-              🔄 {liveStreams.length}
-            </button>
+            {/* Debug button - visível apenas em localhost ou com parâmetro debug */}
+            {(typeof window !== 'undefined' && 
+              (window.location.hostname === 'localhost' || 
+               window.location.search.includes('debug'))) && (
+              <button 
+                onClick={debugInfo}
+                className="ml-2 text-xs bg-red-500 px-2 py-1 rounded opacity-70 hover:opacity-100"
+                title="Debug - clique para verificar sync"
+              >
+                🔄 {liveStreams.length}
+              </button>
+            )}
           </div>
           <div className="flex items-center space-x-3">
             {!isPremium && currentStream && (
@@ -238,7 +272,7 @@ export default function HomePage() {
           />
         ) : (
           <div className="p-4">
-            {/* Premium Banner */}
+            {/* Premium Banner - só aparece se há lives */}
             {!isPremium && liveStreams.length > 0 && (
               <div className="bg-gradient-to-r from-yellow-500 to-orange-500 rounded-lg p-4 mb-6">
                 <div className="flex items-center justify-between">
@@ -263,9 +297,9 @@ export default function HomePage() {
                 <div className="text-sm text-gray-400 flex items-center space-x-2">
                   <span>{liveStreams.length} lives ativas</span>
                   <button 
-                    onClick={checkStorageChanges}
+                    onClick={forceCheckStorage}
                     className="text-blue-400 hover:text-blue-300"
-                    title="Verificar atualizações"
+                    title="Atualizar"
                   >
                     🔄
                   </button>
@@ -273,23 +307,19 @@ export default function HomePage() {
               </div>
               
               {liveStreams.length === 0 ? (
-                // Empty State
+                // Empty State - SEM link para admin
                 <div className="text-center py-12">
                   <div className="mb-4 text-6xl">📺</div>
                   <h3 className="text-xl font-bold mb-2">Nenhuma live ativa</h3>
-                  <p className="text-gray-400 mb-4">
-                    As lives serão exibidas aqui quando adicionadas no painel admin.
+                  <p className="text-gray-400 mb-6">
+                    Em breve teremos lives exclusivas para você!
                   </p>
-                  <div className="bg-gray-800 rounded-lg p-4 max-w-md mx-auto">
-                    <p className="text-sm text-gray-300 mb-2">🔧 Para administradores:</p>
-                    <a 
-                      href="/admin" 
-                      target="_blank"
-                      className="text-purple-400 hover:text-purple-300 text-sm underline"
-                    >
-                      Acesse o painel administrativo
-                    </a>
-                    <p className="text-xs text-gray-500 mt-2">
+                  <div className="bg-gray-800 rounded-lg p-4 max-w-sm mx-auto">
+                    <p className="text-sm text-gray-300 mb-2">🔔 Fique ligado!</p>
+                    <p className="text-xs text-gray-400">
+                      Novas lives podem aparecer a qualquer momento.
+                    </p>
+                    <p className="text-xs text-gray-500 mt-3">
                       Última verificação: {new Date(lastStorageCheck).toLocaleTimeString()}
                     </p>
                   </div>
