@@ -95,7 +95,7 @@ export default function HomePage() {
     loadAndSetStreams();
 
     // Escutar mudanças no localStorage
-    const handleStorageChange = (e) => {
+    const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'liveStreams' || e.key === null) {
         loadAndSetStreams();
       }
