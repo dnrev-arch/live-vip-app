@@ -121,12 +121,6 @@ export default function HomePage() {
             >
               <User className="w-4 h-4" />
             </button>
-            <button
-              onClick={() => setShowAdmin(true)}
-              className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
           </div>
         </div>
       </header>
