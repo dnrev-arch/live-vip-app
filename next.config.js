@@ -6,9 +6,6 @@ const nextConfig = {
       'sample-videos.com'
     ],
     unoptimized: true
-  },
-  experimental: {
-    optimizeCss: true
   }
 };
 module.exports = nextConfig;
