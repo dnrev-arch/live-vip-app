@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { X, Volume2, VolumeX, MessageCircle, Heart, Share2, Users, Crown, Maximize2, Minimize2, ChevronDown, ChevronUp } from 'lucide-react';
+import ViewerCounter from './ViewerCounter';
 
 interface LivePlayerProps {
   stream: {
