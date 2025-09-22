@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { X, Play, Pause, Volume2, VolumeX, MessageCircle, Heart, Share2, Users, Crown, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Volume2, VolumeX, MessageCircle, Heart, Share2, Users, Crown, Maximize2, Minimize2, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface LivePlayerProps {
   stream: {
@@ -13,7 +13,18 @@ interface LivePlayerProps {
     streamerAvatar: string;
     thumbnail: string;
   };
+  allStreams: Array<{
+    id: string;
+    title: string;
+    videoUrl: string;
+    viewerCount: number;
+    streamerName: string;
+    streamerAvatar: string;
+    thumbnail: string;
+    category: string;
+  }>;
   onClose: () => void;
+  onStreamChange: (stream: any) => void;
   isPremium: boolean;
   watchTime: number;
 }
@@ -26,9 +37,9 @@ interface Comment {
   avatar: string;
 }
 
-export default function LivePlayer({ stream, onClose, isPremium, watchTime }: LivePlayerProps) {
+export default function LivePlayer({ stream, allStreams, onClose, onStreamChange, isPremium, watchTime }: LivePlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -39,6 +50,12 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
   const [volume, setVolume] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hasVideoError, setHasVideoError] = useState(false);
+  
+  // Estados para swipe
+  const [touchStartY, setTouchStartY] = useState(0);
+  const [touchStartX, setTouchStartX] = useState(0);
+  const [currentStreamIndex, setCurrentStreamIndex] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   // Comentários simulados
   const simulatedComments = [
@@ -49,7 +66,13 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
     { user: 'Carlos_VIP', message: 'Vale muito a pena ser premium', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=50&h=50&fit=crop&crop=face' }
   ];
 
-  // Adicionar comentários simulados periodicamente
+  // Encontrar índice da stream atual
+  useEffect(() => {
+    const index = allStreams.findIndex(s => s.id === stream.id);
+    setCurrentStreamIndex(index >= 0 ? index : 0);
+  }, [stream.id, allStreams]);
+
+  // Adicionar comentários simulados
   useEffect(() => {
     const interval = setInterval(() => {
       const randomComment = simulatedComments[Math.floor(Math.random() * simulatedComments.length)];
@@ -62,25 +85,26 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
       };
       
       setComments(prev => [...prev.slice(-20), newComment]);
-    }, Math.random() * 10000 + 5000);
+    }, Math.random() * 8000 + 3000);
 
     return () => clearInterval(interval);
   }, []);
 
-  // Configurar vídeo quando componente montar
+  // Configurar vídeo - SEMPRE AUTO-PLAY, SEM PAUSA
   useEffect(() => {
     const video = videoRef.current;
     if (video && stream.videoUrl) {
-      // Configurações do vídeo
       video.muted = isMuted;
       video.volume = volume;
       video.playsInline = true;
       video.controls = false;
+      video.loop = true; // Loop para manter sempre rodando
       
-      // Event listeners do vídeo
       const handleLoadedData = () => {
         console.log('✅ Video loaded successfully');
         setHasVideoError(false);
+        // Auto-play imediato
+        video.play().catch(console.log);
       };
       
       const handleError = (e: any) => {
@@ -88,26 +112,29 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
         setHasVideoError(true);
       };
       
-      const handlePlay = () => setIsPlaying(true);
-      const handlePause = () => setIsPlaying(false);
+      // Impedir pausa - se usuário pausar, volta a tocar
+      const handlePause = () => {
+        setTimeout(() => {
+          if (!video.ended) {
+            video.play().catch(console.log);
+          }
+        }, 100);
+      };
       
       video.addEventListener('loadeddata', handleLoadedData);
       video.addEventListener('error', handleError);
-      video.addEventListener('play', handlePlay);
       video.addEventListener('pause', handlePause);
       
-      // Tentar reproduzir automaticamente
+      // Forçar play inicial
       setTimeout(() => {
         video.play().catch(error => {
           console.log('Autoplay prevented:', error);
-          setIsPlaying(false);
         });
-      }, 500);
+      }, 200);
       
       return () => {
         video.removeEventListener('loadeddata', handleLoadedData);
         video.removeEventListener('error', handleError);
-        video.removeEventListener('play', handlePlay);
         video.removeEventListener('pause', handlePause);
       };
     }
@@ -117,25 +144,57 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
   useEffect(() => {
     let timeout: NodeJS.Timeout;
     if (showControls) {
-      timeout = setTimeout(() => setShowControls(false), 3000);
+      timeout = setTimeout(() => setShowControls(false), 4000);
     }
     return () => clearTimeout(timeout);
   }, [showControls]);
 
-  const togglePlay = async () => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    try {
-      if (isPlaying) {
-        await video.pause();
-      } else {
-        await video.play();
-      }
-    } catch (error) {
-      console.error('Error toggling play:', error);
-      setHasVideoError(true);
+  // Funções de navegação
+  const goToNextStream = () => {
+    if (currentStreamIndex < allStreams.length - 1 && !isTransitioning) {
+      setIsTransitioning(true);
+      const nextStream = allStreams[currentStreamIndex + 1];
+      onStreamChange(nextStream);
+      setTimeout(() => setIsTransitioning(false), 300);
     }
+  };
+
+  const goToPrevStream = () => {
+    if (currentStreamIndex > 0 && !isTransitioning) {
+      setIsTransitioning(true);
+      const prevStream = allStreams[currentStreamIndex - 1];
+      onStreamChange(prevStream);
+      setTimeout(() => setIsTransitioning(false), 300);
+    }
+  };
+
+  // Handlers de touch para swipe
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartY(e.touches[0].clientY);
+    setTouchStartX(e.touches[0].clientX);
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStartY || !touchStartX) return;
+
+    const touchEndY = e.changedTouches[0].clientY;
+    const touchEndX = e.changedTouches[0].clientX;
+    const diffY = touchStartY - touchEndY;
+    const diffX = Math.abs(touchStartX - touchEndX);
+
+    // Só processa se o movimento é mais vertical que horizontal
+    if (Math.abs(diffY) > 50 && diffX < 100) {
+      if (diffY > 0) {
+        // Swipe up - próxima live
+        goToNextStream();
+      } else {
+        // Swipe down - live anterior
+        goToPrevStream();
+      }
+    }
+
+    setTouchStartY(0);
+    setTouchStartX(0);
   };
 
   const toggleMute = () => {
@@ -208,9 +267,12 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
 
   return (
     <div className="fixed inset-0 bg-black z-50">
-      {/* Video Container */}
+      {/* Video Container com Swipe */}
       <div 
+        ref={containerRef}
         className="relative w-full h-full"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
         onClick={() => setShowControls(true)}
       >
         {/* Video Element ou Fallback */}
@@ -223,26 +285,38 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
             playsInline
             muted={isMuted}
             loop
+            autoPlay
+            // Remover controles nativos completamente
+            controlsList="nodownload nofullscreen noremoteplayback"
+            disablePictureInPicture
           />
         ) : (
-          // Fallback: mostrar thumbnail como imagem
           <div 
             className="w-full h-full bg-cover bg-center relative"
             style={{ backgroundImage: `url(${stream.thumbnail})` }}
           >
             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
               <div className="text-center">
-                <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mb-4 mx-auto">
-                  <Play className="w-8 h-8 text-white ml-1" />
+                <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mb-4 mx-auto animate-pulse">
+                  <div className="w-3 h-3 bg-red-500 rounded-full animate-ping"></div>
                 </div>
                 <p className="text-white/80">Live Stream</p>
                 <p className="text-sm text-white/60 mt-2">{stream.title}</p>
                 {hasVideoError && (
                   <p className="text-xs text-yellow-400 mt-2">
-                    Vídeo indisponível - Mostrando preview
+                    Vídeo indisponível - Preview da live
                   </p>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Overlay de transição */}
+        {isTransitioning && (
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+            <div className="bg-white/20 rounded-full p-4">
+              <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
             </div>
           </div>
         )}
@@ -251,6 +325,11 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
         <div className="absolute top-4 left-4 bg-red-500 px-3 py-1 rounded-full text-sm font-bold flex items-center space-x-2">
           <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
           <span>AO VIVO</span>
+        </div>
+
+        {/* Stream Counter */}
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-black/70 px-3 py-1 rounded-full text-sm">
+          {currentStreamIndex + 1} de {allStreams.length}
         </div>
 
         {/* Viewer Count */}
@@ -274,24 +353,43 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
           </div>
         )}
 
-        {/* Controls Overlay */}
-        {showControls && (
-          <div className="absolute inset-0 bg-black/30">
-            {/* Center Play Button */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <button
-                onClick={togglePlay}
-                className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm hover:bg-white/30 transition-colors"
-              >
-                {isPlaying ? (
-                  <Pause className="w-8 h-8 text-white" />
-                ) : (
-                  <Play className="w-8 h-8 text-white ml-1" />
-                )}
-              </button>
-            </div>
+        {/* Swipe Indicators */}
+        <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex flex-col space-y-4">
+          {/* Indicador anterior */}
+          {currentStreamIndex > 0 && (
+            <button
+              onClick={goToPrevStream}
+              className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm"
+            >
+              <ChevronUp className="w-5 h-5" />
+            </button>
+          )}
+          
+          {/* Indicador próxima */}
+          {currentStreamIndex < allStreams.length - 1 && (
+            <button
+              onClick={goToNextStream}
+              className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm"
+            >
+              <ChevronDown className="w-5 h-5" />
+            </button>
+          )}
+        </div>
 
-            {/* Bottom Controls */}
+        {/* Instruções de Swipe (aparecem só no início) */}
+        {showControls && (
+          <div className="absolute bottom-40 left-1/2 transform -translate-x-1/2 text-center">
+            <div className="bg-black/70 backdrop-blur-sm rounded-lg px-4 py-2 mb-2">
+              <p className="text-sm text-white/80">👆 Deslize para cima para próxima live</p>
+              <p className="text-xs text-white/60">👇 Deslize para baixo para anterior</p>
+            </div>
+          </div>
+        )}
+
+        {/* Controls Overlay - SEM PAUSE */}
+        {showControls && (
+          <div className="absolute inset-0 bg-black/20">
+            {/* Bottom Controls - Só Volume e Fullscreen */}
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-3">
@@ -395,7 +493,6 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
                 </button>
               </div>
 
-              {/* Comments List */}
               <div className="flex-1 overflow-y-auto space-y-3 mb-4">
                 {comments.map((comment) => (
                   <div key={comment.id} className="flex items-start space-x-2">
@@ -414,7 +511,6 @@ export default function LivePlayer({ stream, onClose, isPremium, watchTime }: Li
                 ))}
               </div>
 
-              {/* Comment Input */}
               <div className="flex items-center space-x-2">
                 <input
                   type="text"
