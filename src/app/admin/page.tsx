@@ -65,21 +65,20 @@ export default function AdminPage() {
     }
   }, []);
 
-  // Função para fazer login admin
-  const handleAdminLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'admin_livevip_2024';
-    
-    if (password === adminPassword || password === 'admin_livevip_2024') {
-      setIsAuthenticated(true);
-      localStorage.setItem('admin_authenticated', 'true');
-      loadStreams();
-      setPassword('');
-      setError(null);
-    } else {
-      setError('Senha incorreta');
-    }
-  };
+// Função para fazer login admin
+const handleAdminLogin = (e: React.FormEvent) => {
+  e.preventDefault();
+  
+  if (password === 'admin_livevip_2024') {
+    setIsAuthenticated(true);
+    localStorage.setItem('admin_authenticated', 'true');
+    loadStreams();
+    setPassword('');
+    setError(null);
+  } else {
+    setError('Senha incorreta');
+  }
+};
 
   // Função para carregar streams da API com fallback
   const loadStreams = async () => {
