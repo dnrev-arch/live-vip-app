@@ -45,7 +45,7 @@ export default function HomePage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        cache: 'no-store', // Sempre buscar dados atualizados
+        cache: 'no-store',
       });
 
       if (!response.ok) {
@@ -145,6 +145,18 @@ export default function HomePage() {
     setSelectedStream(null);
   };
 
+  const refreshStreams = async () => {
+    try {
+      setError(null);
+      const streams = await fetchLiveStreams();
+      const streamsWithVariation = addViewerVariation(streams);
+      setLiveStreams(streamsWithVariation);
+      setLastUpdate(new Date().toLocaleTimeString('pt-BR'));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao atualizar');
+    }
+  };
+
   if (loading) {
     return (
       <AuthGuard>
@@ -174,18 +186,9 @@ export default function HomePage() {
             
             <div className="flex items-center space-x-4 text-white/60 text-sm">
               <span>📺 {liveStreams.length} streams</span>
-              <span>🕒 {lastUpdate}</span>
+              <span>🕒 {lastUpdate || 'Carregando...'}</span>
               <button
-                onClick={async () => {
-                  try {
-                    const streams = await fetchLiveStreams();
-                    const streamsWithVariation = addViewerVariation(streams);
-                    setLiveStreams(streamsWithVariation);
-                    setLastUpdate(new Date().toLocaleTimeString('pt-BR'));
-                  } catch (error) {
-                    console.error('Refresh failed:', error);
-                  }
-                }}
+                onClick={refreshStreams}
                 className="bg-white/10 hover:bg-white/20 px-3 py-1 rounded-lg transition-all duration-200"
               >
                 🔄
@@ -201,18 +204,7 @@ export default function HomePage() {
               <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-4">
                 <p className="text-red-200">⚠️ {error}</p>
                 <button
-                  onClick={async () => {
-                    try {
-                      setError(null);
-                      setLoading(true);
-                      const streams = await fetchLiveStreams();
-                      setLiveStreams(addViewerVariation(streams));
-                    } catch (err) {
-                      setError(err instanceof Error ? err.message : 'Erro desconhecido');
-                    } finally {
-                      setLoading(false);
-                    }
-                  }}
+                  onClick={refreshStreams}
                   className="mt-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
                 >
                   Tentar novamente
@@ -232,14 +224,7 @@ export default function HomePage() {
                   As lives aparecerão aqui assim que forem adicionadas pelo administrador.
                 </p>
                 <button
-                  onClick={async () => {
-                    try {
-                      const streams = await fetchLiveStreams();
-                      setLiveStreams(addViewerVariation(streams));
-                    } catch (error) {
-                      console.error('Refresh failed:', error);
-                    }
-                  }}
+                  onClick={refreshStreams}
                   className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105"
                 >
                   🔄 Atualizar
@@ -323,17 +308,16 @@ export default function HomePage() {
         {/* Live Player Modal */}
         {selectedStream && (
           <LivePlayer
-  stream={{
-    id: selectedStream.id,
-    title: selectedStream.title,
-    thumbnail: selectedStream.thumbnail,
-    videoUrl: selectedStream.video_url,
-    viewerCount: selectedStream.viewer_count,
-    streamerName: selectedStream.streamer_name,
-    streamerAvatar: selectedStream.streamer_avatar
-  }}
-  onClose={handleClosePlayer}
-/>
+            stream={{
+              id: selectedStream.id,
+              title: selectedStream.title,
+              thumbnail: selectedStream.thumbnail,
+              videoUrl: selectedStream.video_url,
+              viewerCount: selectedStream.viewer_count,
+              streamerName: selectedStream.streamer_name,
+              streamerAvatar: selectedStream.streamer_avatar
+            }}
+            onClose={handleClosePlayer}
           />
         )}
       </div>
