@@ -44,7 +44,6 @@ export default function AdminPage() {
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string>('');
 
-  // Form state
   const [formData, setFormData] = useState({
     title: '',
     thumbnail: '',
@@ -56,7 +55,6 @@ export default function AdminPage() {
     is_live: true
   });
 
-  // Verificar autenticação admin ao carregar
   useEffect(() => {
     const adminAuth = localStorage.getItem('admin_authenticated');
     if (adminAuth === 'true') {
@@ -65,12 +63,10 @@ export default function AdminPage() {
     }
   }, []);
 
-  // Função para fazer login admin
   const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'admin_livevip_2024';
     
-    if (password === adminPassword || password === 'admin_livevip_2024') {
+    if (password === 'admin_livevip_2024') {
       setIsAuthenticated(true);
       localStorage.setItem('admin_authenticated', 'true');
       loadStreams();
@@ -81,58 +77,23 @@ export default function AdminPage() {
     }
   };
 
-  // Função para carregar streams da API com fallback
-  const loadStreams = async () => {
+  const loadStreams = () => {
     try {
-      setLoading(true);
-      setError(null);
-      
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      
-      if (!apiUrl) {
-        throw new Error('API URL not configured');
-      }
-
-      const response = await fetch(`${apiUrl}/api/streams`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        cache: 'no-store',
-      });
-
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
-      }
-
-      const apiStreams = await response.json();
-      setStreams(apiStreams);
-      
-      // Sincronizar com localStorage
-      localStorage.setItem('liveStreams', JSON.stringify(apiStreams));
-      localStorage.setItem('lastApiSync', new Date().toISOString());
-      setLastSync(new Date().toLocaleTimeString('pt-BR'));
-      
-    } catch (error) {
-      console.warn('API unavailable, using localStorage:', error);
-      
-      // Fallback para localStorage
       const savedStreams = localStorage.getItem('liveStreams');
       if (savedStreams) {
         const localStreams = JSON.parse(savedStreams);
         setStreams(localStreams);
-        setError('Usando dados locais - API indisponível');
+        setLastSync(new Date().toLocaleTimeString('pt-BR'));
       } else {
         setStreams([]);
-        setError('Nenhum dado disponível');
       }
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      console.error('Error loading streams:', error);
+      setStreams([]);
     }
   };
 
-  // Função para salvar stream (API + localStorage)
-  const saveStreamBoth = async (streamData: Omit<LiveStream, 'id' | 'created_at' | 'updated_at'>) => {
+  const saveStreamBoth = async (streamData: any) => {
     const newStream: LiveStream = {
       id: editingStream?.id || `stream_${Date.now()}`,
       ...streamData,
@@ -141,37 +102,6 @@ export default function AdminPage() {
       updated_at: new Date().toISOString(),
     };
 
-    let apiSuccess = false;
-
-    // Tentar salvar na API primeiro
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      
-      if (apiUrl) {
-        const endpoint = editingStream 
-          ? `${apiUrl}/api/streams/${editingStream.id}`
-          : `${apiUrl}/api/streams`;
-        
-        const method = editingStream ? 'PUT' : 'POST';
-        
-        const response = await fetch(endpoint, {
-          method,
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(newStream),
-        });
-
-        if (response.ok) {
-          apiSuccess = true;
-          setSuccess(editingStream ? 'Stream atualizada na API!' : 'Stream criada na API!');
-        }
-      }
-    } catch (error) {
-      console.warn('Failed to save to API:', error);
-    }
-
-    // Sempre salvar no localStorage como backup
     let updatedStreams: LiveStream[];
     
     if (editingStream) {
@@ -183,46 +113,27 @@ export default function AdminPage() {
     setStreams(updatedStreams);
     localStorage.setItem('liveStreams', JSON.stringify(updatedStreams));
     
-    if (!apiSuccess) {
-      setSuccess(editingStream ? 'Stream atualizada localmente!' : 'Stream criada localmente!');
-    }
+    setSuccess(editingStream ? 'Stream atualizada!' : 'Stream criada!');
     
     return newStream;
   };
 
-  // Função para deletar stream
   const deleteStream = async (streamId: string) => {
     if (!confirm('Tem certeza que deseja deletar esta stream?')) return;
 
-    try {
-      // Tentar deletar da API
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      
-      if (apiUrl) {
-        await fetch(`${apiUrl}/api/streams/${streamId}`, {
-          method: 'DELETE',
-        });
-      }
-    } catch (error) {
-      console.warn('Failed to delete from API:', error);
-    }
-
-    // Sempre deletar do localStorage
     const updatedStreams = streams.filter(s => s.id !== streamId);
     setStreams(updatedStreams);
     localStorage.setItem('liveStreams', JSON.stringify(updatedStreams));
     setSuccess('Stream deletada!');
   };
 
-  // Função para sincronização forçada
   const forceSync = async () => {
     setSyncing(true);
-    await loadStreams();
+    loadStreams();
     setSyncing(false);
     setSuccess('Sincronização concluída!');
   };
 
-  // Handlers do formulário
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -231,7 +142,6 @@ export default function AdminPage() {
     try {
       await saveStreamBoth(formData);
       
-      // Reset form
       setFormData({
         title: '',
         thumbnail: '',
@@ -247,7 +157,7 @@ export default function AdminPage() {
       setEditingStream(null);
       
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Erro ao salvar stream');
+      setError('Erro ao salvar stream');
     } finally {
       setLoading(false);
     }
@@ -283,7 +193,6 @@ export default function AdminPage() {
     });
   };
 
-  // Limpar mensagens após 3 segundos
   useEffect(() => {
     if (success || error) {
       const timer = setTimeout(() => {
@@ -294,7 +203,6 @@ export default function AdminPage() {
     }
   }, [success, error]);
 
-  // Tela de login admin
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center p-4">
@@ -338,7 +246,6 @@ export default function AdminPage() {
     );
   }
 
-  // Painel admin principal
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
       
@@ -425,7 +332,6 @@ export default function AdminPage() {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  {/* Title */}
                   <div>
                     <label className="block text-white/80 text-sm font-medium mb-2">
                       Título da Live
@@ -440,7 +346,6 @@ export default function AdminPage() {
                     />
                   </div>
 
-                  {/* Streamer Info */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-white/80 text-sm font-medium mb-2">
@@ -473,7 +378,6 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  {/* Avatar */}
                   <div>
                     <label className="block text-white/80 text-sm font-medium mb-2">
                       Avatar do Streamer
@@ -503,7 +407,6 @@ export default function AdminPage() {
                     />
                   </div>
 
-                  {/* URLs */}
                   <div>
                     <label className="block text-white/80 text-sm font-medium mb-2">
                       Thumbnail da Live
@@ -532,7 +435,6 @@ export default function AdminPage() {
                     />
                   </div>
 
-                  {/* Viewer Count */}
                   <div>
                     <label className="block text-white/80 text-sm font-medium mb-2">
                       Número Base de Viewers
@@ -544,12 +446,8 @@ export default function AdminPage() {
                       onChange={(e) => setFormData(prev => ({ ...prev, viewer_count: parseInt(e.target.value) }))}
                       className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500"
                     />
-                    <p className="text-white/60 text-xs mt-1">
-                      O número real irá oscilar ±10% automaticamente
-                    </p>
                   </div>
 
-                  {/* Actions */}
                   <div className="flex space-x-3 pt-4">
                     <button
                       type="submit"
@@ -572,12 +470,7 @@ export default function AdminPage() {
           )}
 
           {/* Streams List */}
-          {loading && !showForm ? (
-            <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-              <p className="text-white">Carregando streams...</p>
-            </div>
-          ) : streams.length === 0 ? (
+          {streams.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-6xl mb-4">📺</div>
               <h3 className="text-xl font-semibold text-white mb-2">Nenhuma live criada</h3>
@@ -590,7 +483,6 @@ export default function AdminPage() {
                   key={stream.id}
                   className="bg-white/10 backdrop-blur rounded-2xl overflow-hidden border border-white/20 hover:border-white/40 transition-all duration-300"
                 >
-                  {/* Thumbnail */}
                   <div className="relative aspect-video">
                     <img
                       src={stream.thumbnail}
@@ -604,12 +496,8 @@ export default function AdminPage() {
                     <div className="absolute top-2 left-2 bg-red-600 text-white text-xs px-2 py-1 rounded-full">
                       🔴 LIVE
                     </div>
-                    <div className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded-full">
-                      👁️ {stream.viewer_count.toLocaleString('pt-BR')}
-                    </div>
                   </div>
 
-                  {/* Content */}
                   <div className="p-4">
                     <h3 className="text-white font-semibold text-lg mb-2 line-clamp-2">
                       {stream.title}
@@ -623,17 +511,7 @@ export default function AdminPage() {
                       />
                       <span className="text-white/80 text-sm">{stream.streamer_name}</span>
                     </div>
-                    
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="text-purple-300 text-sm bg-purple-500/20 px-2 py-1 rounded-full">
-                        {stream.category}
-                      </span>
-                      <span className="text-white/60 text-xs">
-                        {new Date(stream.created_at).toLocaleDateString('pt-BR')}
-                      </span>
-                    </div>
 
-                    {/* Actions */}
                     <div className="flex space-x-2">
                       <button
                         onClick={() => handleEdit(stream)}
