@@ -323,8 +323,17 @@ export default function HomePage() {
         {/* Live Player Modal */}
         {selectedStream && (
           <LivePlayer
-            stream={selectedStream}
-            onClose={handleClosePlayer}
+  stream={{
+    id: selectedStream.id,
+    title: selectedStream.title,
+    thumbnail: selectedStream.thumbnail,
+    videoUrl: selectedStream.video_url,
+    viewerCount: selectedStream.viewer_count,
+    streamerName: selectedStream.streamer_name,
+    streamerAvatar: selectedStream.streamer_avatar
+  }}
+  onClose={handleClosePlayer}
+/>
           />
         )}
       </div>
