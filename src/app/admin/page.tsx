@@ -45,7 +45,7 @@ export default function AdminPage() {
   const [lastSync, setLastSync] = useState<string>('');
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [, setFormData] = useState({
     title: '',
     thumbnail: '',
     video_url: '',
@@ -53,6 +53,7 @@ export default function AdminPage() {
     streamer_name: '',
     streamer_avatar: '',
     category: 'Jogos',
+    is_live: true
   });
 
   // Verificar autenticação admin ao carregar
@@ -239,6 +240,7 @@ export default function AdminPage() {
         streamer_name: '',
         streamer_avatar: '',
         category: 'Jogos',
+        is_live: true
       });
       
       setShowForm(false);
@@ -253,7 +255,7 @@ export default function AdminPage() {
 
   const handleEdit = (stream: LiveStream) => {
     setEditingStream(stream);
-    setFormData({
+    set({
       title: stream.title,
       thumbnail: stream.thumbnail,
       video_url: stream.video_url,
@@ -268,7 +270,7 @@ export default function AdminPage() {
   const handleCancel = () => {
     setShowForm(false);
     setEditingStream(null);
-    setFormData({
+    set({
       title: '',
       thumbnail: '',
       video_url: '',
@@ -428,8 +430,8 @@ export default function AdminPage() {
                     </label>
                     <input
                       type="text"
-                      value={formData.title}
-                      onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                      value={.title}
+                      onChange={(e) => set(prev => ({ ...prev, title: e.target.value }))}
                       className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500"
                       placeholder="Ex: Live de Games Épica!"
                       required
@@ -444,8 +446,8 @@ export default function AdminPage() {
                       </label>
                       <input
                         type="text"
-                        value={formData.streamer_name}
-                        onChange={(e) => setFormData(prev => ({ ...prev, streamer_name: e.target.value }))}
+                        value={.streamer_name}
+                        onChange={(e) => set(prev => ({ ...prev, streamer_name: e.target.value }))}
                         className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500"
                         placeholder="Nome do streamer"
                         required
@@ -456,8 +458,8 @@ export default function AdminPage() {
                         Categoria
                       </label>
                       <select
-                        value={formData.category}
-                        onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                        value={.category}
+                        onChange={(e) => set(prev => ({ ...prev, category: e.target.value }))}
                         className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                       >
                         {CATEGORIES.map(cat => (
@@ -479,9 +481,9 @@ export default function AdminPage() {
                         <button
                           key={index}
                           type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, streamer_avatar: avatar }))}
+                          onClick={() => set(prev => ({ ...prev, streamer_avatar: avatar }))}
                           className={`w-16 h-16 rounded-full border-2 overflow-hidden transition-all ${
-                            formData.streamer_avatar === avatar 
+                            .streamer_avatar === avatar 
                               ? 'border-purple-500 ring-2 ring-purple-300' 
                               : 'border-white/20 hover:border-white/40'
                           }`}
@@ -492,8 +494,8 @@ export default function AdminPage() {
                     </div>
                     <input
                       type="url"
-                      value={formData.streamer_avatar}
-                      onChange={(e) => setFormData(prev => ({ ...prev, streamer_avatar: e.target.value }))}
+                      value={.streamer_avatar}
+                      onChange={(e) => set(prev => ({ ...prev, streamer_avatar: e.target.value }))}
                       className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500"
                       placeholder="Ou cole URL do avatar"
                     />
@@ -506,8 +508,8 @@ export default function AdminPage() {
                     </label>
                     <input
                       type="url"
-                      value={formData.thumbnail}
-                      onChange={(e) => setFormData(prev => ({ ...prev, thumbnail: e.target.value }))}
+                      value={.thumbnail}
+                      onChange={(e) => set(prev => ({ ...prev, thumbnail: e.target.value }))}
                       className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500"
                       placeholder="https://exemplo.com/imagem.jpg"
                       required
@@ -520,8 +522,8 @@ export default function AdminPage() {
                     </label>
                     <input
                       type="url"
-                      value={formData.video_url}
-                      onChange={(e) => setFormData(prev => ({ ...prev, video_url: e.target.value }))}
+                      value={.video_url}
+                      onChange={(e) => set(prev => ({ ...prev, video_url: e.target.value }))}
                       className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500"
                       placeholder="https://exemplo.com/video.mp4"
                       required
@@ -536,8 +538,8 @@ export default function AdminPage() {
                     <input
                       type="number"
                       min="1"
-                      value={formData.viewer_count}
-                      onChange={(e) => setFormData(prev => ({ ...prev, viewer_count: parseInt(e.target.value) }))}
+                      value={.viewer_count}
+                      onChange={(e) => set(prev => ({ ...prev, viewer_count: parseInt(e.target.value) }))}
                       className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500"
                     />
                     <p className="text-white/60 text-xs mt-1">
