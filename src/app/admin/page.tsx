@@ -45,7 +45,7 @@ export default function AdminPage() {
   const [lastSync, setLastSync] = useState<string>('');
 
   // Form state
-  const [, setFormData] = useState({
+  const [formData, setFormData] = useState({
     title: '',
     thumbnail: '',
     video_url: '',
@@ -68,9 +68,9 @@ export default function AdminPage() {
   // Função para fazer login admin
   const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123'; // Fallback para desenvolvimento
+    const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'admin_livevip_2024';
     
-    if (password === adminPassword) {
+    if (password === adminPassword || password === 'admin_livevip_2024') {
       setIsAuthenticated(true);
       localStorage.setItem('admin_authenticated', 'true');
       loadStreams();
@@ -255,7 +255,7 @@ export default function AdminPage() {
 
   const handleEdit = (stream: LiveStream) => {
     setEditingStream(stream);
-    set({
+    setFormData({
       title: stream.title,
       thumbnail: stream.thumbnail,
       video_url: stream.video_url,
@@ -263,6 +263,7 @@ export default function AdminPage() {
       streamer_name: stream.streamer_name,
       streamer_avatar: stream.streamer_avatar,
       category: stream.category,
+      is_live: true
     });
     setShowForm(true);
   };
@@ -270,7 +271,7 @@ export default function AdminPage() {
   const handleCancel = () => {
     setShowForm(false);
     setEditingStream(null);
-    set({
+    setFormData({
       title: '',
       thumbnail: '',
       video_url: '',
@@ -278,6 +279,7 @@ export default function AdminPage() {
       streamer_name: '',
       streamer_avatar: '',
       category: 'Jogos',
+      is_live: true
     });
   };
 
@@ -352,7 +354,7 @@ export default function AdminPage() {
           
           <div className="flex items-center space-x-4">
             <span className="text-white/60 text-sm">
-              📺 {streams.length} streams • 🕒 {lastSync}
+              📺 {streams.length} streams • 🕒 {lastSync || 'Não sincronizado'}
             </span>
             <button
               onClick={forceSync}
@@ -430,8 +432,8 @@ export default function AdminPage() {
                     </label>
                     <input
                       type="text"
-                      value={.title}
-                      onChange={(e) => set(prev => ({ ...prev, title: e.target.value }))}
+                      value={formData.title}
+                      onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
                       className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500"
                       placeholder="Ex: Live de Games Épica!"
                       required
@@ -446,8 +448,8 @@ export default function AdminPage() {
                       </label>
                       <input
                         type="text"
-                        value={.streamer_name}
-                        onChange={(e) => set(prev => ({ ...prev, streamer_name: e.target.value }))}
+                        value={formData.streamer_name}
+                        onChange={(e) => setFormData(prev => ({ ...prev, streamer_name: e.target.value }))}
                         className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500"
                         placeholder="Nome do streamer"
                         required
@@ -458,8 +460,8 @@ export default function AdminPage() {
                         Categoria
                       </label>
                       <select
-                        value={.category}
-                        onChange={(e) => set(prev => ({ ...prev, category: e.target.value }))}
+                        value={formData.category}
+                        onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
                         className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                       >
                         {CATEGORIES.map(cat => (
@@ -481,9 +483,9 @@ export default function AdminPage() {
                         <button
                           key={index}
                           type="button"
-                          onClick={() => set(prev => ({ ...prev, streamer_avatar: avatar }))}
+                          onClick={() => setFormData(prev => ({ ...prev, streamer_avatar: avatar }))}
                           className={`w-16 h-16 rounded-full border-2 overflow-hidden transition-all ${
-                            .streamer_avatar === avatar 
+                            formData.streamer_avatar === avatar 
                               ? 'border-purple-500 ring-2 ring-purple-300' 
                               : 'border-white/20 hover:border-white/40'
                           }`}
@@ -494,8 +496,8 @@ export default function AdminPage() {
                     </div>
                     <input
                       type="url"
-                      value={.streamer_avatar}
-                      onChange={(e) => set(prev => ({ ...prev, streamer_avatar: e.target.value }))}
+                      value={formData.streamer_avatar}
+                      onChange={(e) => setFormData(prev => ({ ...prev, streamer_avatar: e.target.value }))}
                       className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500"
                       placeholder="Ou cole URL do avatar"
                     />
@@ -508,8 +510,8 @@ export default function AdminPage() {
                     </label>
                     <input
                       type="url"
-                      value={.thumbnail}
-                      onChange={(e) => set(prev => ({ ...prev, thumbnail: e.target.value }))}
+                      value={formData.thumbnail}
+                      onChange={(e) => setFormData(prev => ({ ...prev, thumbnail: e.target.value }))}
                       className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500"
                       placeholder="https://exemplo.com/imagem.jpg"
                       required
@@ -522,8 +524,8 @@ export default function AdminPage() {
                     </label>
                     <input
                       type="url"
-                      value={.video_url}
-                      onChange={(e) => set(prev => ({ ...prev, video_url: e.target.value }))}
+                      value={formData.video_url}
+                      onChange={(e) => setFormData(prev => ({ ...prev, video_url: e.target.value }))}
                       className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500"
                       placeholder="https://exemplo.com/video.mp4"
                       required
@@ -538,8 +540,8 @@ export default function AdminPage() {
                     <input
                       type="number"
                       min="1"
-                      value={.viewer_count}
-                      onChange={(e) => set(prev => ({ ...prev, viewer_count: parseInt(e.target.value) }))}
+                      value={formData.viewer_count}
+                      onChange={(e) => setFormData(prev => ({ ...prev, viewer_count: parseInt(e.target.value) }))}
                       className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500"
                     />
                     <p className="text-white/60 text-xs mt-1">
