@@ -1,6 +1,8 @@
 // src/lib/api.ts
 // 🎯 Este arquivo é o "assistente" que cuida de todas as conversas com o banco de dados
 
+import { LiveStream, StreamFormData, StorageKeys } from '@/lib/types';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 class ApiService {
