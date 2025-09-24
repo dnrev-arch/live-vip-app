@@ -1,27 +1,72 @@
 {
-  "name": "LIVE VIP",
-  "short_name": "LIVE VIP",
-  "description": "Lives exclusivas premium com conteúdo de qualidade",
+  "name": "LiveVIP",
+  "short_name": "LiveVIP",
+  "description": "Plataforma de lives premium com acesso gratuito limitado",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",
-  "theme_color": "#8B5CF6",
-  "orientation": "portrait-primary",
+  "theme_color": "#E50914",
+  "orientation": "portrait",
+  "scope": "/",
+  "lang": "pt-BR",
+  "categories": ["entertainment", "video", "streaming"],
   "icons": [
     {
-      "src": "/icon-192x192.png",
+      "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any maskable"
     },
     {
-      "src": "/icon-512x512.png",
+      "src": "/icon-512.png", 
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any maskable"
     }
   ],
-  "categories": ["entertainment", "lifestyle"],
-  "lang": "pt-BR",
-  "dir": "ltr"
+  "screenshots": [
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "/screenshot-desktop.png",
+      "sizes": "1920x1080", 
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Lives",
+      "short_name": "Lives",
+      "description": "Ver lives disponíveis",
+      "url": "/",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "short_name": "Admin", 
+      "description": "Painel administrativo",
+      "url": "/admin",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "edge_side_panel": {
+    "preferred_width": 400
+  }
 }
