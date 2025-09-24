@@ -60,3 +60,33 @@ export interface LivesResponse {
   page: number;
   limit: number;
 }
+
+export interface LiveStream {
+  id: string;
+  title: string;
+  thumbnail: string;
+  video_url: string;
+  viewer_count: number;
+  is_live: boolean;
+  streamer_name: string;
+  streamer_avatar: string;
+  category: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StreamFormData {
+  title: string;
+  thumbnail: string;
+  video_url: string;
+  viewer_count: number;
+  streamer_name: string;
+  streamer_avatar: string;
+  category: string;
+}
+
+export enum StorageKeys {
+  LIVE_STREAMS = 'livevip_streams',
+  LAST_API_UPDATE = 'livevip_last_update',
+  USER_DATA = 'livevip_user'
+}
