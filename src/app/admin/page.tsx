@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Edit2, Trash2, Save, X, Users, Eye, Database, Wifi, WifiOff } from 'lucide-react'
 
 interface Live {
   id: string
@@ -25,18 +24,26 @@ export default function AdminPanel() {
   const [isConnected, setIsConnected] = useState(false)
   const [lastSync, setLastSync] = useState<string>('')
 
+  console.log('🔍 API_URL configurada:', API_URL)
+
   // Função para verificar conexão com API
   async function checkAPIConnection(): Promise<boolean> {
     try {
-      if (!API_URL) return false
+      if (!API_URL) {
+        console.log('❌ API_URL não configurada')
+        return false
+      }
       
-      const response = await fetch(`${API_URL}/health`, { 
-        method: 'GET',
-        timeout: 5000 
-      } as any)
-      return response.ok
+      console.log('🔍 Testando conexão com:', `${API_URL}/health`)
+      
+      const response = await fetch(`${API_URL}/health`)
+      const result = response.ok
+      
+      console.log('📡 Resposta da API:', response.status, result ? 'OK' : 'ERRO')
+      
+      return result
     } catch (error) {
-      console.log('API não disponível:', error)
+      console.log('❌ Erro na conexão API:', error)
       return false
     }
   }
@@ -45,9 +52,14 @@ export default function AdminPanel() {
   async function fetchLives(): Promise<Live[]> {
     try {
       if (API_URL) {
+        console.log('📥 Buscando lives da API...')
+        
         const response = await fetch(`${API_URL}/api/streams`)
         if (response.ok) {
           const data = await response.json()
+          
+          console.log('✅ Lives carregadas da API:', data.length)
+          
           const formattedData = data.map((stream: any) => ({
             id: stream.id,
             title: stream.title,
@@ -69,7 +81,7 @@ export default function AdminPanel() {
       
       throw new Error('API não disponível')
     } catch (error) {
-      console.log('Usando dados locais:', error)
+      console.log('⚠️ Usando dados locais:', error)
       setIsConnected(false)
       
       // Fallback para localStorage
@@ -85,6 +97,8 @@ export default function AdminPanel() {
       localStorage.setItem('livevip-lives', JSON.stringify(updatedLives))
       
       if (API_URL) {
+        console.log('💾 Salvando lives na API...')
+        
         // Tenta salvar na API
         const response = await fetch(`${API_URL}/api/streams`, {
           method: 'POST',
@@ -93,16 +107,18 @@ export default function AdminPanel() {
         })
         
         if (response.ok) {
+          console.log('✅ Lives salvas na API com sucesso')
           setIsConnected(true)
           setLastSync(new Date().toLocaleTimeString())
           return true
         }
       }
       
+      console.log('⚠️ Salvo apenas localmente')
       setIsConnected(false)
       return false
     } catch (error) {
-      console.log('Dados salvos apenas localmente:', error)
+      console.log('❌ Erro ao salvar na API:', error)
       setIsConnected(false)
       return false
     }
@@ -143,6 +159,7 @@ export default function AdminPanel() {
   // Carregar dados ao iniciar
   useEffect(() => {
     const loadData = async () => {
+      console.log('🚀 Iniciando carregamento do admin...')
       setIsLoading(true)
       
       // Verificar autenticação
@@ -154,6 +171,7 @@ export default function AdminPanel() {
       // Verificar conexão API
       const apiConnected = await checkAPIConnection()
       setIsConnected(apiConnected)
+      console.log('🔌 Status da conexão:', apiConnected ? 'CONECTADO' : 'OFFLINE')
 
       // Carregar lives
       const livesData = await fetchLives()
@@ -167,6 +185,7 @@ export default function AdminPanel() {
     // Sincronizar com API periodicamente
     const syncInterval = setInterval(async () => {
       if (isAuthenticated) {
+        console.log('🔄 Sincronizando dados...')
         const updated = await fetchLives()
         setLives(updated)
       }
@@ -242,6 +261,7 @@ export default function AdminPanel() {
   }
 
   const handleSyncNow = async () => {
+    console.log('🔄 Sincronização manual iniciada...')
     setIsLoading(true)
     const updated = await fetchLives()
     setLives(updated)
@@ -295,18 +315,18 @@ export default function AdminPanel() {
             <h1 className="text-3xl font-bold mb-2">Painel Administrativo</h1>
             <div className="flex items-center space-x-4 text-sm text-gray-400">
               <div className="flex items-center space-x-2">
-                <Database className="w-4 h-4" />
+                <span>💾</span>
                 <span>Lives: {lives.length}</span>
               </div>
               <div className="flex items-center space-x-2">
                 {isConnected ? (
                   <>
-                    <Wifi className="w-4 h-4 text-green-400" />
+                    <span className="text-green-400">📶</span>
                     <span className="text-green-400">Conectado à API</span>
                   </>
                 ) : (
                   <>
-                    <WifiOff className="w-4 h-4 text-red-400" />
+                    <span className="text-red-400">📵</span>
                     <span className="text-red-400">Modo Local</span>
                   </>
                 )}
@@ -314,6 +334,9 @@ export default function AdminPanel() {
               {lastSync && (
                 <span>Última sync: {lastSync}</span>
               )}
+            </div>
+            <div className="mt-2 text-xs text-gray-500">
+              API URL: {API_URL || 'Não configurada'}
             </div>
           </div>
           
@@ -323,7 +346,7 @@ export default function AdminPanel() {
               disabled={isLoading}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center disabled:opacity-50"
             >
-              <Database className="w-4 h-4 mr-2" />
+              <span className="mr-2">🔄</span>
               {isLoading ? 'Sincronizando...' : 'Sincronizar'}
             </button>
             
@@ -331,7 +354,7 @@ export default function AdminPanel() {
               onClick={() => setShowAddForm(true)}
               className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center"
             >
-              <Plus className="w-4 h-4 mr-2" />
+              <span className="mr-2">➕</span>
               Nova Live
             </button>
             
@@ -359,7 +382,7 @@ export default function AdminPanel() {
                   AO VIVO
                 </div>
                 <div className="absolute top-3 right-3 bg-black bg-opacity-70 text-white px-2 py-1 rounded text-xs flex items-center">
-                  <Users className="w-3 h-3 mr-1" />
+                  <span className="mr-1">👥</span>
                   {live.viewers}
                 </div>
               </div>
@@ -374,7 +397,7 @@ export default function AdminPanel() {
                     />
                   ) : (
                     <div className="w-8 h-8 bg-gray-700 rounded-full mr-3 flex items-center justify-center">
-                      <span className="text-xs">{live.streamer[0]}</span>
+                      <span className="text-xs">👤</span>
                     </div>
                   )}
                   <div>
@@ -390,13 +413,13 @@ export default function AdminPanel() {
                     onClick={() => setEditingLive(live)}
                     className="text-blue-400 hover:text-blue-300 p-1"
                   >
-                    <Edit2 className="w-4 h-4" />
+                    ✏️
                   </button>
                   <button
                     onClick={() => handleDeleteLive(live.id)}
                     className="text-red-400 hover:text-red-300 p-1"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    🗑️
                   </button>
                 </div>
               </div>
@@ -473,7 +496,7 @@ function LiveFormModal({ live, onSave, onCancel }: LiveFormModalProps) {
             {live ? 'Editar Live' : 'Nova Live'}
           </h2>
           <button onClick={onCancel} className="text-gray-400 hover:text-white">
-            <X className="w-6 h-6" />
+            ❌
           </button>
         </div>
 
@@ -562,7 +585,7 @@ function LiveFormModal({ live, onSave, onCancel }: LiveFormModalProps) {
               type="submit"
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center"
             >
-              <Save className="w-4 h-4 mr-2" />
+              <span className="mr-2">💾</span>
               Salvar
             </button>
           </div>
