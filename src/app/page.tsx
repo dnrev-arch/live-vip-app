@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Heart, Users, Clock, Shield, Play, Pause, User } from 'lucide-react'
 
 interface Live {
   id: string
@@ -47,25 +46,6 @@ async function fetchLives(): Promise<Live[]> {
     console.log('API não disponível, usando dados locais:', error)
     const savedLives = localStorage.getItem('livevip-lives')
     return savedLives ? JSON.parse(savedLives) : getDefaultLives()
-  }
-}
-
-// Função para salvar lives (API + localStorage backup)
-async function saveLives(lives: Live[]): Promise<void> {
-  try {
-    // Sempre salva no localStorage como backup
-    localStorage.setItem('livevip-lives', JSON.stringify(lives))
-    
-    if (API_URL) {
-      // Tenta salvar na API também
-      await fetch(`${API_URL}/api/streams`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(lives)
-      })
-    }
-  } catch (error) {
-    console.log('Dados salvos localmente (API não disponível)')
   }
 }
 
@@ -190,7 +170,7 @@ export default function Home() {
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center space-x-4">
             <div className="w-8 h-8 bg-red-600 rounded flex items-center justify-center">
-              <Play className="w-4 h-4 text-white" />
+              <span className="text-white text-sm">▶</span>
             </div>
             <h1 className="text-xl font-bold">LiveVIP</h1>
           </div>
@@ -198,7 +178,7 @@ export default function Home() {
           <div className="flex items-center space-x-4">
             {user && (
               <div className="flex items-center space-x-2 text-sm">
-                <Shield className="w-4 h-4 text-green-400" />
+                <span className="text-green-400">🛡</span>
                 <span className="text-green-400">{formatTimeLeft(user.timeLeft)}</span>
               </div>
             )}
@@ -206,7 +186,7 @@ export default function Home() {
               onClick={handleLogout}
               className="text-gray-400 hover:text-white transition-colors"
             >
-              <User className="w-5 h-5" />
+              👤
             </button>
           </div>
         </div>
@@ -268,7 +248,7 @@ function LiveCard({ live }: { live: Live }) {
           AO VIVO
         </div>
         <div className="absolute top-3 right-3 bg-black bg-opacity-70 text-white px-2 py-1 rounded text-xs flex items-center">
-          <Users className="w-3 h-3 mr-1" />
+          <span className="mr-1">👥</span>
           {live.viewers.toLocaleString()}
         </div>
       </div>
@@ -286,7 +266,7 @@ function LiveCard({ live }: { live: Live }) {
             />
           ) : (
             <div className="w-8 h-8 bg-gray-700 rounded-full mr-3 flex items-center justify-center">
-              <User className="w-4 h-4 text-gray-400" />
+              <span className="text-gray-400">👤</span>
             </div>
           )}
           <div>
@@ -304,12 +284,12 @@ function LiveCard({ live }: { live: Live }) {
               isLiked ? 'text-red-500' : 'text-gray-400 hover:text-red-400'
             }`}
           >
-            <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
+            <span className="text-sm">{isLiked ? '❤️' : '🤍'}</span>
             <span className="text-sm">{likes}</span>
           </button>
           
           <button className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm font-medium transition-colors flex items-center">
-            <Play className="w-4 h-4 mr-1" />
+            <span className="mr-1">▶️</span>
             Assistir
           </button>
         </div>
@@ -333,7 +313,7 @@ function LoginScreen({ onLogin }: { onLogin: (email: string) => void }) {
       <div className="bg-gray-900 p-8 rounded-lg w-full max-w-md">
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Play className="w-8 h-8 text-white" />
+            <span className="text-white text-2xl">▶</span>
           </div>
           <h1 className="text-2xl font-bold mb-2">LiveVIP</h1>
           <p className="text-gray-400">Acesso exclusivo para membros</p>
