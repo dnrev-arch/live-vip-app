@@ -1,331 +1,432 @@
-'use client';
+"use client";
 
 import { useState, useEffect } from 'react';
-import LivePlayer from '@/components/LivePlayer';
-import AuthGuard from '@/components/AuthGuard';
-import { apiService } from '@/lib/api';
-import { LiveStream } from '@/types'; // ✅ IMPORT CORRIGIDO
+import { Play, Users, Clock, LogOut, Crown, Eye, EyeOff } from 'lucide-react';
+import { cn, formatViewers, formatTime, generateViewerCount, isPremiumUser, getRemainingFreeTime, storage, isValidEmail } from '@/lib/utils';
+import { Live, User } from '@/lib/types';
 
-export default function HomePage() {
-  const [liveStreams, setLiveStreams] = useState<LiveStream[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedStream, setSelectedStream] = useState<LiveStream | null>(null);
-  const [lastUpdate, setLastUpdate] = useState<string>('');
-  const [apiStatus, setApiStatus] = useState<'connected' | 'offline' | 'checking'>('checking');
+// Mock data para demonstração
+const mockLives: Live[] = [
+  {
+    id: '1',
+    title: 'Gaming Session - Fortnite Battle Royale',
+    streamer: 'ProGamer123',
+    category: 'Gaming',
+    thumbnail: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=400&h=300&fit=crop',
+    video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+    base_viewers: 1250,
+    variance_percent: 15,
+    status: 'live',
+    created_at: new Date(),
+    updated_at: new Date()
+  },
+  {
+    id: '2',
+    title: 'Cooking Show - Italian Pasta Masterclass',
+    streamer: 'ChefMaria',
+    category: 'Cooking',
+    thumbnail: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop',
+    video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
+    base_viewers: 890,
+    variance_percent: 20,
+    status: 'live',
+    created_at: new Date(),
+    updated_at: new Date()
+  },
+  {
+    id: '3',
+    title: 'Music Live - Acoustic Guitar Session',
+    streamer: 'MusicLover',
+    category: 'Music',
+    thumbnail: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&h=300&fit=crop',
+    video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+    base_viewers: 2100,
+    variance_percent: 10,
+    status: 'live',
+    created_at: new Date(),
+    updated_at: new Date()
+  },
+  {
+    id: '4',
+    title: 'Tech Talk - Latest AI Developments',
+    streamer: 'TechGuru',
+    category: 'Technology',
+    thumbnail: 'https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=400&h=300&fit=crop',
+    video_url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
+    base_viewers: 1580,
+    variance_percent: 25,
+    status: 'live',
+    created_at: new Date(),
+    updated_at: new Date()
+  }
+];
 
-  // ✅ NOVA FUNÇÃO - Carregar streams usando API helper
-  const loadStreams = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // 🌐 Verificar se API está online
-      const isApiOnline = await apiService.isApiAvailable();
-      setApiStatus(isApiOnline ? 'connected' : 'offline');
-      
-      // 📋 Buscar streams usando nossa API helper
-      const streams = await apiService.getStreams();
-      const streamsWithVariation = addViewerVariation(streams);
-      
-      setLiveStreams(streamsWithVariation);
-      setLastUpdate(new Date().toLocaleTimeString('pt-BR'));
-      
-      console.log('✅ Streams carregadas:', streams.length);
-      
-    } catch (err) {
-      console.error('❌ Erro ao carregar streams:', err);
-      setError(err instanceof Error ? err.message : 'Erro ao carregar streams');
-      setApiStatus('offline');
-      
-      // 💾 Tentar carregar do localStorage como último recurso
-      const savedStreams = localStorage.getItem('liveStreams');
-      if (savedStreams) {
-        try {
-          const localStreams = JSON.parse(savedStreams);
-          setLiveStreams(localStreams);
-          setLastUpdate('Offline - ' + new Date().toLocaleTimeString('pt-BR'));
-        } catch (parseError) {
-          console.error('Erro ao ler localStorage:', parseError);
-        }
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+const mockUser: User = {
+  id: '1',
+  email: 'user@example.com',
+  free_seconds_today: 120, // 2 minutos já usados
+  created_at: new Date(),
+  updated_at: new Date()
+};
 
-  // Função para adicionar oscilação natural aos viewers
-  const addViewerVariation = (streams: LiveStream[]): LiveStream[] => {
-    return streams.map(stream => {
-      const baseCount = stream.viewer_count;
-      const variation = Math.floor(baseCount * 0.1); // ±10% variation
-      const randomChange = Math.floor(Math.random() * (variation * 2 + 1)) - variation;
-      const newCount = Math.max(1, baseCount + randomChange);
-      
-      return {
-        ...stream,
-        viewer_count: newCount,
-      };
-    });
-  };
+export default function LiveVIPApp() {
+  const [user, setUser] = useState<User | null>(null);
+  const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [lives, setLives] = useState<Live[]>(mockLives);
+  const [selectedLive, setSelectedLive] = useState<Live | null>(null);
+  const [showLogin, setShowLogin] = useState(true);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [viewerCounts, setViewerCounts] = useState<Record<string, number>>({});
+  const [remainingTime, setRemainingTime] = useState(0);
+  const [showPassword, setShowPassword] = useState(false);
 
-  // ✅ NOVA FUNÇÃO - Refresh com force sync
-  const refreshStreams = async () => {
-    try {
-      setError(null);
-      const streams = await apiService.forceSync();
-      const streamsWithVariation = addViewerVariation(streams);
-      setLiveStreams(streamsWithVariation);
-      setLastUpdate('Sync - ' + new Date().toLocaleTimeString('pt-BR'));
-      setApiStatus('connected');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro na sincronização');
-      setApiStatus('offline');
-    }
-  };
-
-  const handleStreamClick = (stream: LiveStream) => {
-    setSelectedStream(stream);
-  };
-
-  const handleClosePlayer = () => {
-    setSelectedStream(null);
-  };
-
-  // ✅ Carregar streams na inicialização
+  // Simular oscilação de espectadores
   useEffect(() => {
-    loadStreams();
-  }, []);
-
-  // ✅ ATUALIZAÇÃO PERIÓDICA INTELIGENTE
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        // Só tentar atualizar se a API estiver online
-        if (apiStatus === 'connected') {
-          const streams = await apiService.getStreams();
-          const streamsWithVariation = addViewerVariation(streams);
-          setLiveStreams(streamsWithVariation);
-          setLastUpdate(new Date().toLocaleTimeString('pt-BR'));
-        } else {
-          // Se offline, apenas adicionar variação aos viewers existentes
-          setLiveStreams(prev => addViewerVariation(prev));
-          setLastUpdate('Offline - ' + new Date().toLocaleTimeString('pt-BR'));
-        }
-      } catch (error) {
-        console.warn('Background update failed:', error);
-        setApiStatus('offline');
-        setLiveStreams(prev => addViewerVariation(prev));
-      }
-    }, 30000); // 30 segundos
+    const interval = setInterval(() => {
+      const newCounts: Record<string, number> = {};
+      lives.forEach(live => {
+        newCounts[live.id] = generateViewerCount(live.base_viewers, live.variance_percent);
+      });
+      setViewerCounts(newCounts);
+    }, 8000);
 
     return () => clearInterval(interval);
-  }, [apiStatus]);
+  }, [lives]);
 
-  // Atualizar viewers com oscilação a cada 5 segundos
+  // Inicializar contadores de espectadores
   useEffect(() => {
-    const viewerInterval = setInterval(() => {
-      setLiveStreams(prev => addViewerVariation(prev));
-    }, 5000);
-
-    return () => clearInterval(viewerInterval);
+    const initialCounts: Record<string, number> = {};
+    lives.forEach(live => {
+      initialCounts[live.id] = generateViewerCount(live.base_viewers, live.variance_percent);
+    });
+    setViewerCounts(initialCounts);
   }, []);
 
-  if (loading) {
+  // Verificar usuário logado
+  useEffect(() => {
+    const savedUser = storage.get('livevip_user');
+    if (savedUser) {
+      setUser(savedUser);
+      setShowLogin(false);
+      setRemainingTime(getRemainingFreeTime(savedUser));
+    }
+  }, []);
+
+  const handleLogin = () => {
+    if (!email.trim()) {
+      setEmailError('Email é obrigatório');
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      setEmailError('Email inválido');
+      return;
+    }
+
+    const newUser = { ...mockUser, email };
+    setUser(newUser);
+    storage.set('livevip_user', newUser);
+    setShowLogin(false);
+    setRemainingTime(getRemainingFreeTime(newUser));
+    setEmailError('');
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    storage.remove('livevip_user');
+    setShowLogin(true);
+    setSelectedLive(null);
+  };
+
+  const handleLiveClick = (live: Live) => {
+    if (!user) return;
+    
+    if (!isPremiumUser(user) && remainingTime <= 0) {
+      setShowUpgradeModal(true);
+      return;
+    }
+    
+    setSelectedLive(live);
+  };
+
+  const handleSwipeUp = () => {
+    if (!selectedLive) return;
+    const currentIndex = lives.findIndex(l => l.id === selectedLive.id);
+    const nextIndex = (currentIndex + 1) % lives.length;
+    setSelectedLive(lives[nextIndex]);
+  };
+
+  const handleSwipeDown = () => {
+    if (!selectedLive) return;
+    const currentIndex = lives.findIndex(l => l.id === selectedLive.id);
+    const prevIndex = currentIndex === 0 ? lives.length - 1 : currentIndex - 1;
+    setSelectedLive(lives[prevIndex]);
+  };
+
+  // Login Screen
+  if (showLogin) {
     return (
-      <AuthGuard>
-        <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4"></div>
-            <p className="text-white text-lg">Carregando lives...</p>
-            <p className="text-white/60 text-sm mt-2">
-              Status da API: {apiStatus === 'checking' ? 'Verificando...' : apiStatus === 'connected' ? '🟢 Online' : '🔴 Offline'}
-            </p>
+      <div className="min-h-screen bg-netflix-black flex items-center justify-center p-4">
+        <div className="w-full max-w-md fade-in">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-netflix-red mb-2">LiveVIP</h1>
+            <p className="text-netflix-light-gray">Entre com seu email para começar</p>
+          </div>
+          
+          <div className="space-y-4">
+            <div>
+              <input
+                type="email"
+                placeholder="Seu email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full p-4 bg-netflix-dark-gray border border-netflix-gray rounded-lg text-white placeholder-netflix-light-gray focus:border-netflix-red focus:outline-none transition-colors"
+                onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+              />
+              {emailError && (
+                <p className="text-netflix-red text-sm mt-2">{emailError}</p>
+              )}
+            </div>
+            
+            <button
+              onClick={handleLogin}
+              className="w-full btn-netflix"
+            >
+              Entrar
+            </button>
+          </div>
+          
+          <div className="mt-8 text-center text-netflix-light-gray text-sm">
+            <p>Gratuito: 7 minutos por dia</p>
+            <p>Premium: acesso ilimitado</p>
           </div>
         </div>
-      </AuthGuard>
+      </div>
     );
   }
 
-  return (
-    <AuthGuard>
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
-        
-        {/* ✅ HEADER COM STATUS DA API */}
-        <header className="bg-black/20 backdrop-blur border-b border-white/10 p-4">
-          <div className="max-w-7xl mx-auto flex justify-between items-center">
-            <div className="flex items-center space-x-3">
-              <h1 className="text-2xl font-bold text-white">🔴 LiveVIP</h1>
-              <div className="bg-red-600 text-white text-xs px-2 py-1 rounded-full animate-pulse">
-                AO VIVO
-              </div>
-              {/* Status da API */}
-              <div className={`text-xs px-2 py-1 rounded-full ${
-                apiStatus === 'connected' ? 'bg-green-600 text-white' : 
-                apiStatus === 'offline' ? 'bg-red-600 text-white' : 
-                'bg-yellow-600 text-white'
-              }`}>
-                {apiStatus === 'connected' ? '🟢 Sincronizado' : 
-                 apiStatus === 'offline' ? '🔴 Offline' : 
-                 '🟡 Verificando'}
+  // Video Player
+  if (selectedLive) {
+    return (
+      <div className="min-h-screen bg-netflix-black relative overflow-hidden">
+        <div className="relative h-screen">
+          <video
+            src={selectedLive.video_url}
+            autoPlay
+            loop
+            muted
+            className="w-full h-full object-cover"
+            onTouchStart={(e) => {
+              const startY = e.touches[0].clientY;
+              const handleTouchEnd = (endEvent: TouchEvent) => {
+                const endY = endEvent.changedTouches[0].clientY;
+                const diff = startY - endY;
+                
+                if (Math.abs(diff) > 50) {
+                  if (diff > 0) {
+                    handleSwipeUp();
+                  } else {
+                    handleSwipeDown();
+                  }
+                }
+                
+                document.removeEventListener('touchend', handleTouchEnd);
+              };
+              
+              document.addEventListener('touchend', handleTouchEnd);
+            }}
+          />
+          
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30">
+            {/* Top Bar */}
+            <div className="absolute top-4 left-4 right-4 flex justify-between items-center">
+              <button
+                onClick={() => setSelectedLive(null)}
+                className="p-2 bg-black/50 rounded-full text-white hover:bg-black/70 transition-colors"
+              >
+                ←
+              </button>
+              
+              <div className="flex items-center space-x-2 bg-black/50 rounded-full px-3 py-1">
+                <div className="w-2 h-2 bg-netflix-red rounded-full animate-pulse"></div>
+                <span className="text-white text-sm font-medium">AO VIVO</span>
               </div>
             </div>
             
-            <div className="flex items-center space-x-4 text-white/60 text-sm">
-              <span>📺 {liveStreams.length} streams</span>
-              <span>🕒 {lastUpdate || 'Carregando...'}</span>
-              <button
-                onClick={refreshStreams}
-                className="bg-white/10 hover:bg-white/20 px-3 py-1 rounded-lg transition-all duration-200"
-                disabled={loading}
+            {/* Bottom Info */}
+            <div className="absolute bottom-0 left-0 right-0 p-4">
+              <div className="mb-4">
+                <h2 className="text-white text-xl font-bold mb-1">{selectedLive.title}</h2>
+                <p className="text-netflix-light-gray text-sm mb-2">@{selectedLive.streamer}</p>
+                
+                <div className="flex items-center space-x-4 text-netflix-light-gray text-sm">
+                  <div className="flex items-center space-x-1">
+                    <Users className="w-4 h-4" />
+                    <span>{formatViewers(viewerCounts[selectedLive.id] || selectedLive.base_viewers)}</span>
+                  </div>
+                  <span className="bg-netflix-gray px-2 py-1 rounded text-xs">{selectedLive.category}</span>
+                </div>
+              </div>
+              
+              {/* Time Remaining (Free Users) */}
+              {!isPremiumUser(user!) && (
+                <div className="glass-effect rounded-lg p-3 mb-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Clock className="w-4 h-4 text-netflix-red" />
+                      <span className="text-white text-sm">Tempo restante:</span>
+                    </div>
+                    <span className="text-netflix-red font-bold">{formatTime(remainingTime)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Main App
+  return (
+    <div className="min-h-screen bg-netflix-black text-white">
+      {/* Header */}
+      <header className="sticky top-0 z-50 glass-effect border-b border-netflix-gray">
+        <div className="flex items-center justify-between p-4">
+          <h1 className="text-2xl font-bold text-netflix-red">LiveVIP</h1>
+          
+          <div className="flex items-center space-x-4">
+            {isPremiumUser(user!) && (
+              <div className="flex items-center space-x-1 netflix-gradient px-3 py-1 rounded-full">
+                <Crown className="w-4 h-4" />
+                <span className="text-white text-sm font-bold">PREMIUM</span>
+              </div>
+            )}
+            
+            {!isPremiumUser(user!) && (
+              <div className="flex items-center space-x-2 text-netflix-light-gray text-sm">
+                <Clock className="w-4 h-4" />
+                <span>{formatTime(remainingTime)} restantes</span>
+              </div>
+            )}
+            
+            <button
+              onClick={handleLogout}
+              className="p-2 text-netflix-light-gray hover:text-white transition-colors"
+            >
+              <LogOut className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Lives Grid */}
+      <main className="p-4">
+        <div className="mb-6">
+          <h2 className="text-xl font-bold mb-4">Lives em Destaque</h2>
+          
+          <div className="grid grid-cols-2 gap-4">
+            {lives.map((live) => (
+              <div
+                key={live.id}
+                onClick={() => handleLiveClick(live)}
+                className="relative group cursor-pointer transform transition-all duration-300 hover:scale-105"
               >
-                {loading ? '⏳' : '🔄'}
+                <div className="relative aspect-video rounded-lg overflow-hidden bg-netflix-dark-gray">
+                  <img
+                    src={live.thumbnail}
+                    alt={live.title}
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjQwMCIgaGVpZ2h0PSIzMDAiIGZpbGw9IiMzMzMiLz48cGF0aCBkPSJNMTcwIDEzMEwyMzAgMTUwTDE3MCAyMDBWMTMwWiIgZmlsbD0iI0U1MDkxNCIvPjwvc3ZnPg==';
+                    }}
+                  />
+                  
+                  {/* Live Badge */}
+                  <div className="absolute top-2 left-2 flex items-center space-x-1 bg-netflix-red px-2 py-1 rounded text-xs font-bold">
+                    <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></div>
+                    <span>AO VIVO</span>
+                  </div>
+                  
+                  {/* Viewers Count */}
+                  <div className="absolute top-2 right-2 glass-effect px-2 py-1 rounded text-xs flex items-center space-x-1">
+                    <Users className="w-3 h-3" />
+                    <span>{formatViewers(viewerCounts[live.id] || live.base_viewers)}</span>
+                  </div>
+                  
+                  {/* Play Overlay */}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                    <Play className="w-12 h-12 text-white" />
+                  </div>
+                </div>
+                
+                <div className="mt-2">
+                  <h3 className="font-semibold text-sm line-clamp-2 mb-1">{live.title}</h3>
+                  <p className="text-netflix-light-gray text-xs">@{live.streamer}</p>
+                  <span className="inline-block bg-netflix-gray text-netflix-light-gray px-2 py-1 rounded text-xs mt-1">
+                    {live.category}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </main>
+
+      {/* Upgrade Modal */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <div className="bg-netflix-dark-gray rounded-lg p-6 w-full max-w-md fade-in">
+            <h3 className="text-xl font-bold mb-4 text-center">Tempo Esgotado!</h3>
+            <p className="text-netflix-light-gray text-center mb-6">
+              Você usou seus 7 minutos gratuitos de hoje. Faça upgrade para continuar assistindo!
+            </p>
+            
+            <div className="space-y-3 mb-6">
+              <div className="bg-netflix-gray p-4 rounded-lg">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold">Semanal</span>
+                  <span className="text-netflix-red font-bold">R$ 9,90</span>
+                </div>
+              </div>
+              <div className="bg-netflix-gray p-4 rounded-lg border-2 border-netflix-red">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold">Mensal</span>
+                  <span className="text-netflix-red font-bold">R$ 29,90</span>
+                </div>
+                <span className="text-xs text-green-400">Mais Popular</span>
+              </div>
+              <div className="bg-netflix-gray p-4 rounded-lg">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold">Anual</span>
+                  <span className="text-netflix-red font-bold">R$ 299,90</span>
+                </div>
+                <span className="text-xs text-green-400">Economize 17%</span>
+              </div>
+            </div>
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowUpgradeModal(false)}
+                className="flex-1 bg-netflix-gray text-white p-3 rounded-lg font-semibold hover:bg-netflix-light-gray transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  setShowUpgradeModal(false);
+                  window.open(process.env.NEXT_PUBLIC_KIRVANO_CHECKOUT_URL, '_blank');
+                }}
+                className="flex-1 btn-netflix"
+              >
+                Assinar
               </button>
             </div>
           </div>
-        </header>
-
-        {/* ✅ ALERT PARA MODO OFFLINE */}
-        {apiStatus === 'offline' && (
-          <div className="bg-yellow-500/20 border-b border-yellow-500/30 p-3">
-            <div className="max-w-7xl mx-auto text-center">
-              <p className="text-yellow-200 text-sm">
-                ⚠️ Modo offline - Alguns dados podem estar desatualizados. 
-                <button 
-                  onClick={refreshStreams}
-                  className="underline ml-2 hover:text-white"
-                >
-                  Tentar reconectar
-                </button>
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Main Content */}
-        <main className="p-6">
-          {error && (
-            <div className="max-w-7xl mx-auto mb-6">
-              <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-4">
-                <p className="text-red-200">⚠️ {error}</p>
-                <button
-                  onClick={refreshStreams}
-                  className="mt-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
-                >
-                  Tentar novamente
-                </button>
-              </div>
-            </div>
-          )}
-
-          {liveStreams.length === 0 ? (
-            <div className="max-w-7xl mx-auto text-center py-20">
-              <div className="bg-white/10 backdrop-blur rounded-2xl p-12 border border-white/20">
-                <div className="text-6xl mb-6">📺</div>
-                <h2 className="text-2xl font-bold text-white mb-4">
-                  Nenhuma live disponível no momento
-                </h2>
-                <p className="text-white/60 mb-6">
-                  As lives aparecerão aqui assim que forem adicionadas pelo administrador.
-                </p>
-                <button
-                  onClick={refreshStreams}
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105"
-                >
-                  🔄 Atualizar
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="max-w-7xl mx-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {liveStreams.map((stream) => (
-                  <div
-                    key={stream.id}
-                    onClick={() => handleStreamClick(stream)}
-                    className="bg-white/10 backdrop-blur rounded-2xl overflow-hidden border border-white/20 hover:border-white/40 transition-all duration-300 transform hover:scale-105 cursor-pointer group"
-                  >
-                    {/* Thumbnail */}
-                    <div className="relative aspect-video">
-                      <img
-                        src={stream.thumbnail}
-                        alt={stream.title}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjE4MCIgdmlld0JveD0iMCAwIDMyMCAxODAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjMyMCIgaGVpZ2h0PSIxODAiIGZpbGw9IiMyMzIzMjMiLz48cGF0aCBkPSJNMTQ0IDc2TDE3NiA5NEwxNDQgMTEyVjc2WiIgZmlsbD0iIzY2NjY2NiIvPjwvc3ZnPg==';
-                        }}
-                      />
-                      
-                      {/* Live indicator */}
-                      <div className="absolute top-3 left-3 bg-red-600 text-white text-xs px-2 py-1 rounded-full animate-pulse">
-                        🔴 AO VIVO
-                      </div>
-                      
-                      {/* Viewers count */}
-                      <div className="absolute top-3 right-3 bg-black/50 text-white text-xs px-2 py-1 rounded-full">
-                        👁️ {stream.viewer_count.toLocaleString('pt-BR')}
-                      </div>
-                      
-                      {/* Play overlay */}
-                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                        <div className="w-16 h-16 bg-white/90 rounded-full flex items-center justify-center">
-                          <div className="w-0 h-0 border-l-[20px] border-l-black border-y-[12px] border-y-transparent ml-1"></div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Stream info */}
-                    <div className="p-4">
-                      <h3 className="text-white font-semibold text-lg mb-2 line-clamp-2 group-hover:text-blue-300 transition-colors">
-                        {stream.title}
-                      </h3>
-                      
-                      <div className="flex items-center space-x-2 mb-2">
-                        <img
-                          src={stream.streamer_avatar}
-                          alt={stream.streamer_name}
-                          className="w-6 h-6 rounded-full object-cover"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIxMiIgY3k9IjEyIiByPSIxMiIgZmlsbD0iIzY2NjY2NiIvPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTAiIHI9IjMiIGZpbGw9IndoaXRlIi8+PHBhdGggZD0iTTcgMThDNyAxNS4yMzkgOS4yMzkgMTMgMTIgMTNTMTcgMTUuMjM5IDE3IDE4IiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjwvc3ZnPg==';
-                          }}
-                        />
-                        <span className="text-white/80 text-sm">{stream.streamer_name}</span>
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <span className="text-purple-300 text-sm bg-purple-500/20 px-2 py-1 rounded-full">
-                          {stream.category}
-                        </span>
-                        <span className="text-white/60 text-xs">
-                          {new Date(stream.created_at).toLocaleDateString('pt-BR')}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </main>
-
-        {/* Live Player Modal */}
-        {selectedStream && (
-          <LivePlayer
-            stream={{
-              id: selectedStream.id,
-              title: selectedStream.title,
-              thumbnail: selectedStream.thumbnail,
-              videoUrl: selectedStream.video_url,
-              viewerCount: selectedStream.viewer_count,
-              streamerName: selectedStream.streamer_name,
-              streamerAvatar: selectedStream.streamer_avatar
-            }}
-            onClose={handleClosePlayer}
-          />
-        )}
-      </div>
-    </AuthGuard>
+        </div>
+      )}
+    </div>
   );
 }
