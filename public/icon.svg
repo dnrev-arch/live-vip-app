@@ -1,14 +1,20 @@
-<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="192" height="192" rx="32" fill="url(#gradient)"/>
-  <path d="M96 48C78.3 48 64 62.3 64 80V112C64 129.7 78.3 144 96 144C113.7 144 128 129.7 128 112V80C128 62.3 113.7 48 96 48Z" fill="white"/>
-  <circle cx="96" cy="80" r="8" fill="#8B5CF6"/>
-  <path d="M80 96L112 96" stroke="white" stroke-width="4" stroke-linecap="round"/>
-  <path d="M80 112L112 112" stroke="white" stroke-width="4" stroke-linecap="round"/>
-  <path d="M48 64L48 128C48 137.9 55.2 146.4 64.8 148.8L96 160L127.2 148.8C136.8 146.4 144 137.9 144 128V64" stroke="#FFD700" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-  <defs>
-    <linearGradient id="gradient" x1="0" y1="0" x2="192" y2="192" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#8B5CF6"/>
-      <stop offset="1" stop-color="#EC4899"/>
-    </linearGradient>
-  </defs>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="512" height="512" rx="64" fill="#000000"/>
+  
+  <!-- Play button circle -->
+  <circle cx="256" cy="256" r="120" fill="#E50914"/>
+  
+  <!-- Play triangle -->
+  <path d="M220 200L220 312L340 256L220 200Z" fill="white"/>
+  
+  <!-- VIP text -->
+  <text x="256" y="420" font-family="Arial, sans-serif" font-size="48" font-weight="bold" text-anchor="middle" fill="#E50914">VIP</text>
+  
+  <!-- Live indicator -->
+  <circle cx="400" cy="112" r="24" fill="#E50914"/>
+  <circle cx="400" cy="112" r="16" fill="white"/>
+  <circle cx="400" cy="112" r="8" fill="#E50914">
+    <animate attributeName="opacity" values="1;0.3;1" dur="2s" repeatCount="indefinite"/>
+  </circle>
 </svg>
