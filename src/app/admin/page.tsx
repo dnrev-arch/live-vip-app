@@ -1,7 +1,10 @@
 'use client';
 
+// 📦 IMPORTS
 import { useState, useEffect } from 'react';
+import { apiService } from '@/lib/api'; // 👈 Nosso assistente da API
 
+// 🏷️ TIPOS DE DADOS
 interface LiveStream {
   id: string;
   title: string;
@@ -16,6 +19,7 @@ interface LiveStream {
   updated_at: string;
 }
 
+// 🎭 AVATARES SUGERIDOS (para facilitar a escolha)
 const SUGGESTED_AVATARS = [
   'https://i.pravatar.cc/150?img=1',
   'https://i.pravatar.cc/150?img=2',
@@ -27,23 +31,27 @@ const SUGGESTED_AVATARS = [
   'https://i.pravatar.cc/150?img=8',
 ];
 
+// 📂 CATEGORIAS DISPONÍVEIS
 const CATEGORIES = [
   'Jogos', 'Música', 'Esportes', 'Tecnologia', 'Culinária', 
   'Arte', 'Educação', 'Entretenimento', 'Fitness', 'Viagem'
 ];
 
 export default function AdminPage() {
-  const [streams, setStreams] = useState<LiveStream[]>([]);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [editingStream, setEditingStream] = useState<LiveStream | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [lastSync, setLastSync] = useState<string>('');
+  // 🗃️ ESTADOS (variáveis que mudam na tela)
+  const [streams, setStreams] = useState<LiveStream[]>([]); // Lista de streams
+  const [isAuthenticated, setIsAuthenticated] = useState(false); // Se está logado
+  const [password, setPassword] = useState(''); // Senha digitada
+  const [loading, setLoading] = useState(false); // Se está carregando
+  const [error, setError] = useState<string | null>(null); // Mensagem de erro
+  const [success, setSuccess] = useState<string | null>(null); // Mensagem de sucesso
+  const [showForm, setShowForm] = useState(false); // Se mostra o formulário
+  const [editingStream, setEditingStream] = useState<LiveStream | null>(null); // Stream sendo editada
+  const [syncing, setSyncing] = useState(false); // Se está sincronizando
+  const [lastSync, setLastSync] = useState<string>(''); // Último horário de sincronização
+  const [apiStatus, setApiStatus] = useState<'online' | 'offline' | 'checking'>('checking'); // Status da API
 
+  // 📝 DADOS DO FORMULÁRIO
   const [formData, setFormData] = useState({
     title: '',
     thumbnail: '',
@@ -55,93 +63,145 @@ export default function AdminPage() {
     is_live: true
   });
 
+  // 🚀 QUANDO A PÁGINA CARREGA
   useEffect(() => {
+    console.log('🚀 Página admin carregando...');
+    
+    // Verificar se já está logado
     const adminAuth = localStorage.getItem('admin_authenticated');
     if (adminAuth === 'true') {
+      console.log('✅ Usuário já está logado');
       setIsAuthenticated(true);
-      loadStreams();
+      loadStreams(); // Carregar streams
     }
   }, []);
 
+  // 🔐 FAZER LOGIN DO ADMIN
   const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('🔐 Tentando fazer login...');
     
+    // Verificar senha (você pode mudar aqui)
     if (password === 'admin_livevip_2024') {
+      console.log('✅ Senha correta!');
       setIsAuthenticated(true);
       localStorage.setItem('admin_authenticated', 'true');
       loadStreams();
       setPassword('');
       setError(null);
     } else {
+      console.log('❌ Senha incorreta!');
       setError('Senha incorreta');
     }
   };
 
-  const loadStreams = () => {
+  // 📡 CARREGAR STREAMS (usando nossa API helper)
+  const loadStreams = async () => {
+    console.log('📡 Carregando streams...');
+    setLoading(true);
+    
     try {
-      const savedStreams = localStorage.getItem('liveStreams');
-      if (savedStreams) {
-        const localStreams = JSON.parse(savedStreams);
-        setStreams(localStreams);
-        setLastSync(new Date().toLocaleTimeString('pt-BR'));
-      } else {
-        setStreams([]);
-      }
+      // 🌐 Verificar se API está online
+      const isApiOnline = await apiService.isApiAvailable();
+      setApiStatus(isApiOnline ? 'online' : 'offline');
+      
+      // 📋 Buscar streams
+      const streamsList = await apiService.getStreams();
+      setStreams(streamsList);
+      setLastSync(new Date().toLocaleTimeString('pt-BR'));
+      
+      console.log('✅ Streams carregadas:', streamsList.length);
+      
     } catch (error) {
-      console.error('Error loading streams:', error);
-      setStreams([]);
+      console.error('❌ Erro ao carregar streams:', error);
+      setError('Erro ao carregar streams');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const saveStreamBoth = async (streamData: any) => {
-    const newStream: LiveStream = {
-      id: editingStream?.id || `stream_${Date.now()}`,
-      ...streamData,
-      is_live: true,
-      created_at: editingStream?.created_at || new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    let updatedStreams: LiveStream[];
+  // 💾 SALVAR STREAM (criar nova ou atualizar)
+  const saveStream = async (streamData: any) => {
+    console.log(editingStream ? '✏️ Atualizando stream...' : '➕ Criando nova stream...');
     
-    if (editingStream) {
-      updatedStreams = streams.map(s => s.id === editingStream.id ? newStream : s);
-    } else {
-      updatedStreams = [...streams, newStream];
+    try {
+      let savedStream: LiveStream;
+      
+      if (editingStream) {
+        // 📝 ATUALIZAR stream existente
+        savedStream = await apiService.updateStream(editingStream.id, streamData);
+        console.log('✅ Stream atualizada:', savedStream.id);
+      } else {
+        // ➕ CRIAR nova stream
+        savedStream = await apiService.createStream(streamData);
+        console.log('✅ Nova stream criada:', savedStream.id);
+      }
+      
+      // 🔄 Recarregar lista de streams
+      await loadStreams();
+      
+      // 📢 Mostrar mensagem de sucesso
+      setSuccess(editingStream ? 'Stream atualizada!' : 'Stream criada!');
+      
+      return savedStream;
+      
+    } catch (error) {
+      console.error('❌ Erro ao salvar stream:', error);
+      throw error;
     }
-    
-    setStreams(updatedStreams);
-    localStorage.setItem('liveStreams', JSON.stringify(updatedStreams));
-    
-    setSuccess(editingStream ? 'Stream atualizada!' : 'Stream criada!');
-    
-    return newStream;
   };
 
+  // 🗑️ DELETAR STREAM
   const deleteStream = async (streamId: string) => {
+    // 🤔 Confirmar se realmente quer deletar
     if (!confirm('Tem certeza que deseja deletar esta stream?')) return;
 
-    const updatedStreams = streams.filter(s => s.id !== streamId);
-    setStreams(updatedStreams);
-    localStorage.setItem('liveStreams', JSON.stringify(updatedStreams));
-    setSuccess('Stream deletada!');
+    console.log('🗑️ Deletando stream:', streamId);
+    setLoading(true);
+
+    try {
+      await apiService.deleteStream(streamId);
+      await loadStreams(); // Recarregar lista
+      setSuccess('Stream deletada!');
+      console.log('✅ Stream deletada com sucesso');
+    } catch (error) {
+      console.error('❌ Erro ao deletar stream:', error);
+      setError('Erro ao deletar stream');
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // 🔄 FORÇAR SINCRONIZAÇÃO
   const forceSync = async () => {
+    console.log('🔄 Forçando sincronização...');
     setSyncing(true);
-    loadStreams();
-    setSyncing(false);
-    setSuccess('Sincronização concluída!');
+    setError(null);
+    
+    try {
+      await apiService.forceSync();
+      await loadStreams();
+      setSuccess('Sincronização concluída!');
+    } catch (error) {
+      console.error('❌ Erro na sincronização:', error);
+      setError('Erro na sincronização');
+    } finally {
+      setSyncing(false);
+    }
   };
 
+  // 📋 ENVIAR FORMULÁRIO
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('📋 Enviando formulário...');
+    
     setLoading(true);
     setError(null);
 
     try {
-      await saveStreamBoth(formData);
+      await saveStream(formData);
       
+      // 🧹 Limpar formulário após salvar
       setFormData({
         title: '',
         thumbnail: '',
@@ -163,7 +223,9 @@ export default function AdminPage() {
     }
   };
 
+  // ✏️ EDITAR STREAM
   const handleEdit = (stream: LiveStream) => {
+    console.log('✏️ Editando stream:', stream.title);
     setEditingStream(stream);
     setFormData({
       title: stream.title,
@@ -178,7 +240,9 @@ export default function AdminPage() {
     setShowForm(true);
   };
 
+  // ❌ CANCELAR EDIÇÃO
   const handleCancel = () => {
+    console.log('❌ Cancelando edição...');
     setShowForm(false);
     setEditingStream(null);
     setFormData({
@@ -193,6 +257,7 @@ export default function AdminPage() {
     });
   };
 
+  // 🕒 LIMPAR MENSAGENS APÓS 3 SEGUNDOS
   useEffect(() => {
     if (success || error) {
       const timer = setTimeout(() => {
@@ -203,6 +268,7 @@ export default function AdminPage() {
     }
   }, [success, error]);
 
+  // 🔐 TELA DE LOGIN (se não estiver logado)
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900 flex items-center justify-center p-4">
@@ -246,16 +312,23 @@ export default function AdminPage() {
     );
   }
 
+  // 🎛️ PAINEL PRINCIPAL (quando logado)
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-900">
       
-      {/* Header */}
+      {/* 📢 CABEÇALHO */}
       <header className="bg-black/20 backdrop-blur border-b border-white/10 p-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="flex items-center space-x-3">
             <h1 className="text-2xl font-bold text-white">⚙️ Painel Admin</h1>
-            <div className="bg-green-600 text-white text-xs px-2 py-1 rounded-full">
-              ATIVO
+            <div className={`text-xs px-2 py-1 rounded-full ${
+              apiStatus === 'online' ? 'bg-green-600 text-white' : 
+              apiStatus === 'offline' ? 'bg-red-600 text-white' : 
+              'bg-yellow-600 text-white'
+            }`}>
+              {apiStatus === 'online' ? '🟢 API Online' : 
+               apiStatus === 'offline' ? '🔴 API Offline' : 
+               '🟡 Verificando'}
             </div>
           </div>
           
@@ -283,7 +356,7 @@ export default function AdminPage() {
         </div>
       </header>
 
-      {/* Messages */}
+      {/* 📢 MENSAGENS DE SUCESSO/ERRO */}
       {(success || error) && (
         <div className="max-w-7xl mx-auto p-4">
           {success && (
@@ -299,23 +372,25 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* 🏠 CONTEÚDO PRINCIPAL */}
       <main className="p-6">
         <div className="max-w-7xl mx-auto">
           
-          {/* Actions */}
+          {/* 🎛️ AÇÕES */}
           <div className="flex justify-between items-center mb-8">
             <h2 className="text-xl font-semibold text-white">
               Gerenciar Lives ({streams.length})
             </h2>
             <button
               onClick={() => setShowForm(true)}
-              className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 transform hover:scale-105"
+              disabled={loading}
+              className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-500 disabled:to-gray-600 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 transform hover:scale-105"
             >
               ➕ Nova Live
             </button>
           </div>
 
-          {/* Form Modal */}
+          {/* 📝 FORMULÁRIO MODAL */}
           {showForm && (
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-white/20">
@@ -332,9 +407,10 @@ export default function AdminPage() {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  {/* Título */}
                   <div>
                     <label className="block text-white/80 text-sm font-medium mb-2">
-                      Título da Live
+                      Título da Live *
                     </label>
                     <input
                       type="text"
@@ -346,10 +422,11 @@ export default function AdminPage() {
                     />
                   </div>
 
+                  {/* Nome e Categoria */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-white/80 text-sm font-medium mb-2">
-                        Nome do Streamer
+                        Nome do Streamer *
                       </label>
                       <input
                         type="text"
@@ -378,6 +455,7 @@ export default function AdminPage() {
                     </div>
                   </div>
 
+                  {/* Avatares Sugeridos */}
                   <div>
                     <label className="block text-white/80 text-sm font-medium mb-2">
                       Avatar do Streamer
@@ -407,9 +485,10 @@ export default function AdminPage() {
                     />
                   </div>
 
+                  {/* Thumbnail */}
                   <div>
                     <label className="block text-white/80 text-sm font-medium mb-2">
-                      Thumbnail da Live
+                      Thumbnail da Live *
                     </label>
                     <input
                       type="url"
@@ -421,9 +500,10 @@ export default function AdminPage() {
                     />
                   </div>
 
+                  {/* URL do Vídeo */}
                   <div>
                     <label className="block text-white/80 text-sm font-medium mb-2">
-                      URL do Vídeo
+                      URL do Vídeo (opcional)
                     </label>
                     <input
                       type="url"
@@ -431,10 +511,10 @@ export default function AdminPage() {
                       onChange={(e) => setFormData(prev => ({ ...prev, video_url: e.target.value }))}
                       className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500"
                       placeholder="https://exemplo.com/video.mp4"
-                      required
                     />
                   </div>
 
+                  {/* Viewers */}
                   <div>
                     <label className="block text-white/80 text-sm font-medium mb-2">
                       Número Base de Viewers
@@ -448,6 +528,7 @@ export default function AdminPage() {
                     />
                   </div>
 
+                  {/* Botões */}
                   <div className="flex space-x-3 pt-4">
                     <button
                       type="submit"
@@ -469,8 +550,13 @@ export default function AdminPage() {
             </div>
           )}
 
-          {/* Streams List */}
-          {streams.length === 0 ? (
+          {/* 📺 LISTA DE STREAMS */}
+          {loading && streams.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+              <p className="text-white">Carregando streams...</p>
+            </div>
+          ) : streams.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-6xl mb-4">📺</div>
               <h3 className="text-xl font-semibold text-white mb-2">Nenhuma live criada</h3>
@@ -515,13 +601,15 @@ export default function AdminPage() {
                     <div className="flex space-x-2">
                       <button
                         onClick={() => handleEdit(stream)}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm py-2 px-3 rounded-lg transition-colors"
+                        disabled={loading}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white text-sm py-2 px-3 rounded-lg transition-colors"
                       >
                         ✏️ Editar
                       </button>
                       <button
                         onClick={() => deleteStream(stream.id)}
-                        className="bg-red-600 hover:bg-red-700 text-white text-sm py-2 px-3 rounded-lg transition-colors"
+                        disabled={loading}
+                        className="bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white text-sm py-2 px-3 rounded-lg transition-colors"
                       >
                         🗑️
                       </button>
